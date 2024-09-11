@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <title>QXX AI视频搜索</title> -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        .bg-striped {
+            background-image: linear-gradient(135deg, #2c3e50 25%, transparent 25%), linear-gradient(225deg, #2c3e50 25%, transparent 25%), linear-gradient(315deg, #2c3e50 25%, transparent 25%), linear-gradient(45deg, #2c3e50 25%, transparent 25%);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px, 30px 30px, 0 30px;
+        }
+
+        .sidebar {
+            background-color: #2c3e50;
+        }
+
+        .sidebar-icon {
+            color: #ecf0f1;
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #6a82fb, #fc5c7d);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .input-field {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ecf0f1;
+        }
+
+        .button {
+            background-color: #3498db;
+            color: #ecf0f1;
+        }
+
+        .result-card {
+            background-color: #ecf0f1;
+        }
+
+        .watermark {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        .watermark-content {
+            font-size: 100px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .animate-bounce {
+            animation: bounce 0.6s infinite;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.5s ease-out forwards;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+        }
+
+        /* 删除或注释掉这个动画 */
+        /*
+        @keyframes moveWave {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-30px);
+            }
+        }
+        */
+    </style>
+</head>
+<body>
+    <div id="root" className="flex h-screen"></div>
+    <script type="text/babel" data-type="module">
+        const { useState, useEffect, useRef, Fragment } = React;
+
+        const DEBUG_MODE = false; // 添加调试模式标志
+
+        const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHistoryQuestionClick }) => {
+            const [activeMenu, setActiveMenu] = useState('History'); // 默认设置 History 为激活状态
+            const menuItems = [
+                { icon: 'mdi-plus', text: 'Ask new question', action: onNewQuestion },
+                { icon: 'mdi-account', text: 'My Space' },
+                { icon: 'mdi-bookmark', text: 'Saved' },
+                { icon: 'mdi-history', text: 'History' },
+                { icon: 'mdi-cog', text: 'Settings' },
+            ];
+
+            return (
+                <aside className={`sidebar text-white transition-all duration-300 ${isOpen ? 'w-64' : 'w-20'} flex flex-col shadow-lg`}>
+                    <div className="p-4 flex items-center justify-between">
+                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <span className="text-white font-bold text-xl">QXX</span>
+                        </div>
+                        <button onClick={toggleSidebar} className="text-white hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors">
+                            <i className={`mdi ${isOpen ? 'mdi-chevron-left' : 'mdi-chevron-right'} text-xl`}></i>
+                        </button>
+                    </div>
+                    <nav className="flex-1 mt-4">
+                        {menuItems.map((item, index) => (
+                            <div key={index}>
+                                <a
+                                    href="#"
+                                    className="flex items-center p-4 hover:bg-white hover:bg-opacity-10 transition-colors rounded-lg mx-2"
+                                    onClick={() => {
+                                        if (item.action) {
+                                            item.action();
+                                        }
+                                        setActiveMenu(item.text);
+                                    }}
+                                >
+                                    <i className={`mdi ${item.icon} text-xl sidebar-icon`}></i>
+                                    <span className={`ml-4 ${isOpen ? '' : 'hidden'}`}>{item.text}</span>
+                                    {item.text === 'History' && isOpen && (
+                                        <i className={`mdi mdi-chevron-down ml-auto ${activeMenu === 'History' ? 'transform rotate-180' : ''}`}></i>
+                                    )}
+                                </a>
+                                {item.text === 'History' && isOpen && activeMenu === 'History' && (
+                                    <div className="ml-8 mt-2">
+                                        {historyQuestions.map((question, hIndex) => (
+                                            <a 
+                                                key={hIndex} 
+                                                href="#" 
+                                                className="block py-2 px-4 text-sm hover:bg-white hover:bg-opacity-10 rounded-lg"
+                                                onClick={() => onHistoryQuestionClick(question)}
+                                            >
+                                                {question}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </nav>
+                </aside>
+            );
+        };
+
+        const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
+            const [input, setInput] = useState('');
+            const [selectedModel, setSelectedModel] = useState('GPT-3.5');
+            const [searchResults, setSearchResults] = useState([]);
+            const [followUpQuestion, setFollowUpQuestion] = useState('');
+            const models = ['gpt-3.5-turbo', 'gpt-4'];
+            const resultsContainerRef = useRef(null);
+            const [conversations, setConversations] = useState([]);
+            const [displaySteps, setDisplaySteps] = useState({});
+            const [selectedEvidence, setSelectedEvidence] = useState(null);
+            const [expandedSummaries, setExpandedSummaries] = useState({});
+            const [hotTopics, setHotTopics] = useState([]);
+            const [uploadedVideo, setUploadedVideo] = useState(null);
+            const [transcription, setTranscription] = useState(``);
+            const [summary, setSummary] = useState('');
+            const [fileInputKey, setFileInputKey] = useState(0);
+            const [lastHotTopicsUpdate, setLastHotTopicsUpdate] = useState(null);
+            const [uploadProgress, setUploadProgress] = useState(0);
+            const [videoUrl, setVideoUrl] = useState('');
+            const [processedTranscription, setProcessedTranscription] = useState(null);
+
+            useEffect(() => {
+                console.log("SearchInterface 组件已挂载");
+                console.log("初始状态:", { showInitialSearch, currentQuestion, isLoading });
+                const fetchHotTopics = async () => {
+                    const now = new Date();
+                    if (!lastHotTopicsUpdate || (now - lastHotTopicsUpdate) > 3600000) {
+                        console.log("开始获取热门话题");
+                        await generateHotTopics();
+                        setLastHotTopicsUpdate(now);
+                    }
+                };
+                fetchHotTopics();
+                return () => {
+                    console.log("SearchInterface 组件将卸载");
+                };
+            }, []);
+
+            const BASE_URL = 'http://localhost:3000/api';
+
+            const generateHotTopics = async () => {
+                try {
+                    console.log("正在生成热门话题");
+                    const response = await fetch(`${BASE_URL}/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: "gpt-3.5-turbo",
+                            messages: [
+                                { role: "system", content: "你是一个AI视频搜索助手。请生成3个当前热门的视频相关搜索问题。每个问题应该简短、吸引人，并且当前的热门话题或趋势相关。" },
+                                { role: "user", content: "生成热门视搜索问题" }
+                            ],
+                            max_tokens: 500
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('API请求失败');
+                    }
+
+                    const data = await response.json();
+                    console.log("成功获取热门话题:", data);
+                    const topics = data.choices[0].message.content.split('\n').filter(topic => topic.trim() !== '');
+                    console.log("处理后的热门话题:", topics);
+                    setHotTopics(topics);
+                } catch (error) {
+                    console.error('生成热点问题时出错:', error);
+                    setHotTopics(["最新病毒视频有哪些？", "如何制作吸引人的短视频？", "AI换脸技术在视的应用趋势是什么？"]);
+                }
+            };
+
+            const handleSearch = async (question, isNewQuestion = false) => {
+                if (!question.trim()) return;
+                console.log(`开始搜索: "${question}", 是否新问题: ${isNewQuestion}`);
+                setIsLoading(true);
+                setShowInitialSearch(false);
+                onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
+
+                try {
+                    // 立即添加新的对话或结果，但标记为加载中
+                    setConversations(prevConversations => {
+                        const newResult = {
+                            question: question,
+                            isLoading: true,
+                            searchedWebsites: [],
+                            summary: { conclusion: '', evidence: [] },
+                            relatedQuestions: []
+                        };
+                        if (isNewQuestion) {
+                            console.log("创建新对话");
+                            return [...prevConversations, [newResult]];
+                        } else {
+                            console.log("向现有对话添加新结果");
+                            const updatedConversations = [...prevConversations];
+                            updatedConversations[updatedConversations.length - 1].push(newResult);
+                            return updatedConversations;
+                        }
+                    });
+
+                    console.log("发送请求到API");
+                    const response = await fetch(`${BASE_URL}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
+                            messages: [
+                                { role: "system", content: `你是一个AI视频搜索助手。请按以下格式回答用户的问题：
+
+                                        回答：
+                                        [在这里提供对用户问题的详细答]
+
+                                        证据：
+                                        1. [证据1]
+                                        2. [证据2]
+                                        3. [证据3]
+
+                                        相关问题：
+                                        1. [相关问题1]
+                                        2. [相关问题2]
+                                        3. [相关问题3]
+                                        4. [相关问题4]
+
+                                        请确保严格遵循这个格式。` },
+                                { role: "user", content: question }
+                            ],
+                            max_tokens: 1000
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API请求失败: ${errorData.error}\n详情: ${JSON.stringify(errorData.details)}`);
+                    }
+
+                    const data = await response.json();
+                    console.log("API响应数据:", data);
+                    const answer = data.choices[0].message.content;
+
+                    if (!answer || typeof answer !== 'string') {
+                        throw new Error('API 返回的答案格式不正确');
+                    }
+
+                    // 解析回答
+                    console.log("开始解析API返回的答案");
+                    const answerMatch = answer.match(/回答：([\s\S]*?)(?:\n\n|$)/);
+                    const mainAnswer = answerMatch && answerMatch[1] ? answerMatch[1].trim() : answer;
+
+                    const evidenceMatch = answer.match(/证据([\s\S]*?)(?:\n\n|$)/);
+                    const evidence = evidenceMatch && evidenceMatch[1] 
+                        ? evidenceMatch[1].split('\n').filter(e => e.trim()).map(e => e.replace(/^\d+\.\s*/, ''))
+                        : [];
+
+                    const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)(?:\n\n|$)/);
+                    const relatedQuestions = relatedQuestionsMatch && relatedQuestionsMatch[1]
+                        ? relatedQuestionsMatch[1].split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s*/, ''))
+                        : [];
+
+                    console.log("解析完成，更新对话内容");
+                    // 更新对话内容
+                    setConversations(prevConversations => {
+                        const updatedConversations = [...prevConversations];
+                        const currentConversation = updatedConversations[updatedConversations.length - 1];
+                        const updatedResult = {
+                            question: question,
+                            isLoading: false,
+                            searchedWebsites: ['https://www.openai.com'],
+                            summary: {
+                                conclusion: mainAnswer,
+                                evidence: evidence.map(e => ({
+                                    text: e,
+                                    source: 'OpenAI',
+                                    url: 'https://www.openai.com'
+                                }))
+                            },
+                            relatedQuestions: relatedQuestions
+                        };
+                        currentConversation[currentConversation.length - 1] = updatedResult;
+                        return updatedConversations;
+                    });
+
+                    // 逐步显示新结果的内容
+                    const newConversationId = isNewQuestion ? conversations.length : conversations.length - 1;
+                    const newResultId = isNewQuestion ? 0 : conversations[newConversationId].length - 1;
+                    
+                    const showStepWithScroll = (step) => {
+                        setDisplaySteps(prev => ({
+                            ...prev,
+                            [`${newConversationId}-${newResultId}`]: {
+                                ...prev[`${newConversationId}-${newResultId}`],
+                                [step]: true
+                            }
+                        }));
+                        setTimeout(() => scrollToBottom(), 100);
+                    };
+
+                    setTimeout(() => showStepWithScroll('question'), 500);
+                    setTimeout(() => showStepWithScroll('websites'), 1000);
+                    setTimeout(() => showStepWithScroll('summary'), 1500);
+                    setTimeout(() => showStepWithScroll('relatedQuestions'), 2000);
+
+                } catch (error) {
+                    console.error('搜索过程中错误:', error);
+                    setConversations(prevConversations => {
+                        const updatedConversations = [...prevConversations];
+                        const currentConversation = updatedConversations[updatedConversations.length - 1];
+                        const errorResult = {
+                            question: question,
+                            isLoading: false,
+                            searchedWebsites: [],
+                            summary: {
+                                conclusion: '抱歉，搜索过程中出现错误。',
+                                evidence: [{
+                                    text: `错误信息: ${error.message}`,
+                                    source: '错误详情',
+                                    url: '#'
+                                }]
+                            },
+                            relatedQuestions: []
+                        };
+                        currentConversation[currentConversation.length - 1] = errorResult;
+                        return updatedConversations;
+                    });
+                } finally {
+                    setIsLoading(false);
+                    setInput('');
+                    setFollowUpQuestion('');
+                    console.log("搜索过程完成");
+                }
+            };
+
+            // 添加这个函数来理滚动
+            const scrollToBottom = () => {
+                if (resultsContainerRef.current) {
+                    resultsContainerRef.current.scrollTop = resultsContainerRef.current.scrollHeight;
+                }
+            };
+
+            useEffect(() => {
+                if (currentQuestion) {
+                    setSearchResults([]); // 清空之前的结果
+                    handleSearch(currentQuestion);
+                }
+            }, [currentQuestion]);
+
+            const handleKeyPress = (e, inputType) => {
+                if (e.key === 'Enter') {
+                    if (inputType === 'main') {
+                        handleSearch(input, true);
+                    } else if (inputType === 'followUp') {
+                        handleSearch(followUpQuestion);
+                    }
+                }
+            };
+
+            const toggleSummaryExpansion = (evidenceIndex) => {
+                setExpandedSummaries(prev => ({
+                    ...prev,
+                    [evidenceIndex]: !prev[evidenceIndex]
+                }));
+            };
+
+            const renderEvidenceDetails = (evidence, index) => {
+                const isExpanded = expandedSummaries[index];
+                const shouldShowExpand = evidence.text.length > 200;
+                
+                // 使用正则表达式匹配 <important> 标签
+                const processedText = evidence.text.split(/<important>|<\/important>/).map((part, partIndex) => {
+                    if (partIndex % 2 === 1) {
+                        return <ImportantSentence key={partIndex}>{part}</ImportantSentence>;
+                    }
+                    return part;
+                });
+
+                return (
+                    <div key={index} className="bg-white p-4 rounded-lg shadow-md mb-4">
+                        <h4 className="text-lg font-semibold mb-2">{evidence.source}</h4>
+                        <div className="text-gray-700 mb-2">
+                            {shouldShowExpand ? (
+                                <Fragment>
+                                    {isExpanded ? processedText : processedText.slice(0, 200)}
+                                    {shouldShowExpand && (
+                                        <button 
+                                            onClick={() => toggleSummaryExpansion(index)}
+                                            className="text-blue-500 hover:underline ml-2"
+                                        >
+                                            {isExpanded ? '收起' : '展开更多'}
+                                        </button>
+                                    )}
+                                </Fragment>
+                            ) : (
+                                processedText
+                            )}
+                        </div>
+                        <a href={evidence.url} target="_blank" rel="noopener noreferrer" className="block mt-2 text-blue-500 hover:underline">
+                            查看原文
+                        </a>
+                    </div>
+                );
+            };
+
+            useEffect(() => {
+                // 当有新的对话时，自动设置右侧显示的证据
+                if (conversations.length > 0) {
+                    const latestConversation = conversations[conversations.length - 1];
+                    const latestResult = latestConversation[latestConversation.length - 1];
+                    setSelectedEvidence(latestResult.summary.evidence);
+                }
+            }, [conversations]);
+
+            const handleVideoUpload = async (event) => {
+                if (DEBUG_MODE) {
+                    console.log("DEBUG模式: 模拟视频上传");
+                    setIsLoading(false);
+                    setUploadProgress(100);
+                    return;
+                }
+                const file = event.target.files[0];
+                if (file) {
+                    console.log("开始上传视频文件:", file.name);
+                    console.log("文件大小:", file.size, "bytes");
+                    console.log("文件类型:", file.type);
+                    setUploadedVideo(file);
+                    setIsLoading(true);
+                    setUploadProgress(0);
+                    setTranscription('');
+
+                    try {
+                        console.log('开始处理视频文件');
+                        
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const response = await fetch(`${BASE_URL}/convert-and-transcribe`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        console.log('音频转文字完成');
+                        console.log('完整转录结果:', data.text);
+                        console.log('转录结果长度:', data.text.length, '字符');
+                        setTranscription(data.text);
+
+                    } catch (error) {
+                        console.error('视频处理出错:', error);
+                        setTranscription("抱歉，视频处理过程中出现错误：" + error.message);
+                    } finally {
+                        setIsLoading(false);
+                        setUploadProgress(100);
+                        console.log("视频处理完成");
+                    }
+                }
+                setFileInputKey(prevKey => prevKey + 1);
+            };
+
+            const handleVideoUrl = async (url) => {
+                if (DEBUG_MODE) {
+                    console.log("DEBUG模式: 模拟视频上传");
+                    setIsLoading(false);
+                    setUploadProgress(100);
+                    return;
+                }
+                setIsLoading(true);
+                setUploadProgress(0);
+                setTranscription('');
+
+                try {
+                    console.log('开始处理视频URL:', url);
+                    
+                    const response = await fetch(`${BASE_URL}/convert-and-transcribe-url`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('音频转文字完成');
+                    console.log('完整转录结果:', data.text);
+                    setTranscription(data.text);
+
+                } catch (error) {
+                    console.error('视频处理出错:', error);
+                    setTranscription("抱歉，视频处理过程中出现错误：" + error.message);
+                } finally {
+                    setIsLoading(false);
+                    setUploadProgress(100);
+                }
+            };
+
+            const handleProcessTranscription = async () => {
+                if (!transcription) return;
+                console.log("开始处理转录文字");
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch(`${BASE_URL}/process-transcription`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ transcription })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('API请求失败');
+                    }
+
+                    const data = await response.json();
+                    console.log("API 返回的数据:", data);
+                    setProcessedTranscription(data);
+                    console.log("processedTranscription 已更新:", data);
+                    
+                    // 生成相关问题
+                    const relatedQuestionsResponse = await fetch(`${BASE_URL}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: "gpt-3.5-turbo",
+                            messages: [
+                                { role: "system", content: "你是一个AI视频内容分析助手。请根据以下视频内容总结，生成4个相关的问题。" },
+                                { role: "user", content: data.summary }
+                            ],
+                            max_tokens: 150
+                        })
+                    });
+
+                    if (!relatedQuestionsResponse.ok) {
+                        throw new Error('生成相关问题失败');
+                    }
+
+                    const relatedQuestionsData = await relatedQuestionsResponse.json();
+                    const relatedQuestions = relatedQuestionsData.choices[0].message.content
+                        .split('\n')
+                        .filter(q => q.trim() !== '')
+                        .map(q => q.replace(/^\d+\.\s*/, ''));
+
+                    // 创建新的对话
+                    const newConversation = [{
+                        question: "视频内容总结",
+                        isLoading: false,
+                        searchedWebsites: ['本地处理'],
+                        summary: {
+                            conclusion: data.summary,
+                            evidence: [{
+                                text: data.preprocessed,
+                                source: '预处理结果',
+                                url: '#'
+                            }]
+                        },
+                        relatedQuestions: relatedQuestions
+                    }];
+
+                    setConversations(prevConversations => [...prevConversations, newConversation]);
+                    
+                    // 切换到展示处理结果的界面
+                    setShowInitialSearch(false);
+                    console.log("界面已切换到处理结果展示");
+
+                } catch (error) {
+                    console.error('处理转录文字时出错:', error);
+                    setProcessedTranscription(null);
+                } finally {
+                    setIsLoading(false);
+                    console.log("转录文字处理完成");
+                }
+            };
+
+            const ImportantSentence = ({ children }) => (
+                <span 
+                    style={{
+                        fontWeight: 'bold',
+                        color: '#FF4500', // 使用醒目的颜色，这里是橙红色
+                    }}
+                >
+                    {children}
+                </span>
+            );
+
+            const renderProcessedTranscription = () => {
+                console.log("renderProcessedTranscription 被调用");
+                if (!processedTranscription) {
+                    console.log("processedTranscription 为 null");
+                    return null;
+                }
+
+                const { summary, preprocessed } = processedTranscription;
+
+                console.log("原始预处理文本:", preprocessed);
+
+                const markedPreprocessed = preprocessed.split(/<important>|<\/important>/).map((part, index) => {
+                    if (index % 2 === 1) {
+                        console.log("匹配到重要句子:", part);
+                        return <ImportantSentence key={index}>{part}</ImportantSentence>;
+                    }
+                    return part;
+                });
+
+                console.log("处理后的文本:", markedPreprocessed);
+
+                return (
+                    <div className="mb-8 bg-white bg-opacity-10 p-4 rounded-lg">
+                        <h3 className="text-xl font-semibold text-white mb-4">处理结果</h3>
+                        <div>
+                            <h4 className="text-lg font-semibold text-white mb-2">总结：</h4>
+                            <p className="text-white mb-4">{summary}</p>
+                            <h4 className="text-lg font-semibold text-white mb-2">预处理结果：</h4>
+                            <div className="text-white">{markedPreprocessed}</div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const VideoPlayer = ({ videoFile }) => {
+                const videoUrl = videoFile ? URL.createObjectURL(videoFile) : null;
+                const [currentTime, setCurrentTime] = useState(0);
+                const [duration, setDuration] = useState(0);
+                const videoRef = useRef(null);
+
+                const handleTimeUpdate = () => {
+                    if (videoRef.current) {
+                        setCurrentTime(videoRef.current.currentTime);
+                    }
+                };
+
+                const handleLoadedMetadata = () => {
+                    if (videoRef.current) {
+                        setDuration(videoRef.current.duration);
+                    }
+                };
+
+                const handleSliderChange = (e) => {
+                    const newTime = parseFloat(e.target.value);
+                    setCurrentTime(newTime);
+                    if (videoRef.current) {
+                        videoRef.current.currentTime = newTime;
+                    }
+                };
+
+                return (
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold text-white mb-4">上传的视频：</h3>
+                        {videoUrl && (
+                            <div>
+                                <video 
+                                    ref={videoRef}
+                                    controls 
+                                    className="w-full max-w-lg mx-auto rounded-lg shadow-lg mb-4"
+                                    src={videoUrl}
+                                    onTimeUpdate={handleTimeUpdate}
+                                    onLoadedMetadata={handleLoadedMetadata}
+                                >
+                                    的浏览器不支持 HTML5 视频。
+                                </video>
+                                <div className="w-full max-w-lg mx-auto">
+                                    <input 
+                                        type="range"
+                                        min="0"
+                                        max={duration}
+                                        value={currentTime}
+                                        onChange={handleSliderChange}
+                                        className="w-full"
+                                    />
+                                    <div className="flex justify-between text-white text-sm">
+                                        <span>{formatTime(currentTime)}</span>
+                                        <span>{formatTime(duration)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // 添加一个辅助函数来格式化时间
+            const formatTime = (time) => {
+                const minutes = Math.floor(time / 60);
+                const seconds = Math.floor(time % 60);
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            };
+
+            return (
+                <div className="flex flex-col h-full">
+                    {showInitialSearch ? (
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="search-container max-w-3xl mx-auto">
+                                <div className="flex justify-center mb-8">
+                                    <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                                        <span className="text-white font-bold text-1xl">x</span>
+                                    </div>
+                                </div>
+                                <h2 className="text-5xl font-bold mb-8 text-center gradient-text">xxx</h2>
+                                
+                                <div className="mb-8">
+                                    <div className="flex">
+                                        <div className="relative flex-grow">
+                                            <input
+                                                type="text"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        handleSearch(input, true);
+                                                    }
+                                                }}
+                                                className="input-field w-full rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl py-6 px-4"
+                                                placeholder="搜索视频..."
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => handleSearch(input, true)}
+                                            className="button rounded-r-lg hover:bg-blue-600 transition-colors px-6"
+                                            disabled={isLoading}
+                                        >
+                                            {isLoading ? (
+                                                <i className="mdi mdi-loading mdi-spin"></i>
+                                            ) : (
+                                                <i className="mdi mdi-magnify"></i>
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="mt-4 flex justify-between items-center">
+                                        <select
+                                            id="model-select"
+                                            value={selectedModel}
+                                            onChange={(e) => setSelectedModel(e.target.value)}
+                                            className="p-2 border rounded-lg bg-white bg-opacity-20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        >
+                                            {models.map(model => (
+                                                <option key={model} value={model}>{model}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div className="mb-8">
+                                    <h3 className="text-xl font-semibold text-white mb-4">热搜索：</h3>
+                                    <div className="flex flex-wrap justify-center gap-4">
+                                        {hotTopics.map((topic, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleSearch(topic, true)}
+                                                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-2 px-4 rounded-full transition-colors"
+                                            >
+                                                {topic}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                {!DEBUG_MODE && (
+                                    <React.Fragment>
+                                        <div className="mb-8">
+                                            <h3 className="text-xl font-semibold text-white mb-4">上传视频：</h3>
+                                            <input
+                                                type="file"
+                                                accept="video/*"
+                                                onChange={handleVideoUpload}
+                                                className="hidden"
+                                                id="video-upload"
+                                                key={fileInputKey}
+                                            />
+                                            <label 
+                                                htmlFor="video-upload" 
+                                                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded cursor-pointer"
+                                            >
+                                                选择视频文件
+                                            </label>
+                                        </div>
+                                        
+                                        <div className="mb-8">
+                                            <h3 className="text-xl font-semibold text-white mb-4">输入视频URL：</h3>
+                                            <div className="flex">
+                                                <input
+                                                    type="text"
+                                                    className="input-field flex-1 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="输入视频URL..."
+                                                    value={videoUrl}
+                                                    onChange={(e) => setVideoUrl(e.target.value)}
+                                                />
+                                                <button
+                                                    onClick={() => handleVideoUrl(videoUrl)}
+                                                    className="button rounded-r-lg hover:bg-blue-600 transition-colors"
+                                                    disabled={isLoading}
+                                                >
+                                                    处理视频URL
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                )}
+
+                                {DEBUG_MODE && (
+                                    <div className="mb-8">
+                                        <h3 className="text-xl font-semibold text-white mb-4">调试模式：</h3>
+                                        <button
+                                            onClick={() => handleVideoUrl("debug")}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+                                        >
+                                            获取预设文字
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                {isLoading && (
+                                    <div className="mb-4">
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                                            <div 
+                                                className="bg-blue-600 h-2.5 rounded-full" 
+                                                style={{width: `${uploadProgress}%`}}
+                                            ></div>
+                                        </div>
+                                        <p className="text-white mt-2">上传进度：{uploadProgress}%</p>
+                                    </div>
+                                )}
+                                
+                                {uploadedVideo && (
+                                    <VideoPlayer videoFile={uploadedVideo} />
+                                )}
+                                
+                                {transcription && (
+                                    <div className="mb-8">
+                                        <h3 className="text-xl font-semibold text-white mb-4">视频转录：</h3>
+                                        <div className="bg-white bg-opacity-10 p-4 rounded-lg max-h-60 overflow-y-auto">
+                                            <p className="text-white whitespace-pre-wrap">{transcription}</p>
+                                        </div>
+                                        <button
+                                            onClick={handleProcessTranscription}
+                                            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+                                        >
+                                            处理转录文字
+                                        </button>
+                                    </div>
+                                )}
+                                
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col h-full">
+                            <div className="flex flex-1 overflow-hidden">
+                                <div className="flex-1 overflow-auto space-y-6 p-8">
+                                    {conversations.map((conversation, convIndex) => (
+                                        <div key={convIndex} className="result-card p-6 space-y-6">
+                                            {conversation.map((result, index) => {
+                                                const stepKey = `${convIndex}-${index}`;
+                                                const steps = displaySteps[stepKey] || { question: true, websites: true, summary: true, relatedQuestions: true };
+                                                return (
+                                                    <div key={index} className="bg-white p-6 rounded-lg shadow space-y-4">
+                                                        {result.isLoading ? (
+                                                            <div className="flex items-center justify-center space-x-2">
+                                                                <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce"></div>
+                                                                <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                                <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                            </div>
+                                                        ) : (
+                                                            <React.Fragment>
+                                                                {steps.question && (
+                                                                    <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
+                                                                        <h3 className="text-xl font-semibold mb-2">提问：</h3>
+                                                                        <p className="text-gray-700 text-lg">{result.question}</p>
+                                                                    </div>
+                                                                )}
+                                                                {steps.websites && (
+                                                                    <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
+                                                                        <h3 className="text-xl font-semibold mb-2">已搜索的网站：</h3>
+                                                                        <ul className="list-disc list-inside text-blue-500 text-lg">
+                                                                            {result.searchedWebsites.map((site, siteIndex) => (
+                                                                                <li key={siteIndex} className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${siteIndex !== 0 ? "mt-2" : ""}`} style={{animationDelay: `${siteIndex * 300}ms`}}>
+                                                                                    <a href={site} target="_blank" rel="noopener noreferrer">{site}</a>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
+                                                                {steps.summary && (
+                                                                    <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
+                                                                        <h3 className="text-xl font-semibold mb-2">总结：</h3>
+                                                                        <p className="text-gray-700 mb-2 text-lg"><strong>结论：</strong> {result.summary.conclusion}</p>
+                                                                        {result.summary.importantSentences && result.summary.importantSentences.length > 0 && (
+                                                                            <div>
+                                                                                <p className="text-gray-700 text-lg"><strong>重要句子：</strong></p>
+                                                                                {result.summary.importantSentences.map((sentence, idx) => (
+                                                                                    <p key={idx} className="text-gray-700 text-lg mb-2">
+                                                                                        <ImportantSentence>{sentence}</ImportantSentence>
+                                                                                    </p>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                        <p className="text-gray-700 text-lg"><strong>依据：</strong></p>
+                                                                        {result.summary.evidence.map((item, evidenceIndex) => (
+                                                                            <div key={evidenceIndex} className={`mb-2 text-lg ${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${evidenceIndex * 300}ms`}}>
+                                                                                {item.text.split(/<important>|<\/important>/).map((part, partIndex) => 
+                                                                                    partIndex % 2 === 1 ? <ImportantSentence key={partIndex}>{part}</ImportantSentence> : part
+                                                                                )}
+                                                                                <span 
+                                                                                    className="cursor-pointer text-blue-500 hover:underline ml-2"
+                                                                                    onClick={() => setSelectedEvidence(result.summary.evidence)}
+                                                                                >
+                                                                                    [{evidenceIndex + 1}]
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {result.summary.importantSentences && (
+                                                                            <div className="mt-4">
+                                                                                <h3 className="text-xl font-semibold mb-2">重要句子：</h3>
+                                                                                <ul className="list-disc list-inside text-blue-500 text-lg">
+                                                                                    {result.summary.importantSentences.map((sentence, sentenceIndex) => (
+                                                                                        <li key={sentenceIndex} className={`${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${sentenceIndex * 300}ms`}}>
+                                                                                            {sentence}
+                                                                                        </li>
+                                                                                    ))}
+                                                                                </ul>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                {steps.relatedQuestions && (
+                                                                    <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
+                                                                        <h3 className="text-xl font-semibold mb-2">相关问题：</h3>
+                                                                        <ul className="list-disc list-inside text-blue-500 text-lg">
+                                                                            {result.relatedQuestions.map((question, questionIndex) => (
+                                                                                <li key={questionIndex} className={`cursor-pointer hover:underline ${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${questionIndex * 300}ms`}} onClick={() => handleSearch(question)}>
+                                                                                    {question}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
+                                                            </React.Fragment>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex justify-center items-center">
+                                            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="w-1/3 p-4 bg-gray-100 overflow-auto">
+                                    {selectedEvidence && selectedEvidence.map((evidence, index) => renderEvidenceDetails(evidence, index))}
+                                </div>
+                            </div>
+                            <div className="p-8 border-t">
+                                <div className="flex">
+                                    <input
+                                        type="text"
+                                        value={followUpQuestion}
+                                        onChange={(e) => setFollowUpQuestion(e.target.value)}
+                                        onKeyPress={(e) => handleKeyPress(e, 'followUp')}
+                                        className="input-field flex-1 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="追加问题或开始新对话..."
+                                        disabled={isLoading}
+                                    />
+                                    <button
+                                        onClick={() => handleSearch(followUpQuestion)}
+                                        className="button rounded-r-lg hover:bg-blue-600 transition-colors"
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? (
+                                            <i className="mdi mdi-loading mdi-spin"></i>
+                                        ) : (
+                                            <i className="mdi mdi-send"></i>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => handleSearch(followUpQuestion, true)}
+                                        className="button bg-green-500 rounded-lg ml-2 hover:bg-green-600 transition-colors"
+                                        title="开始新对话"
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? (
+                                            <i className="mdi mdi-loading mdi-spin"></i>
+                                        ) : (
+                                            <i className="mdi mdi-plus"></i>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [historyQuestions, setHistoryQuestions] = useState([]);
+            const [showInitialSearch, setShowInitialSearch] = useState(true);
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [isLoading, setIsLoading] = useState(false);
+
+            const toggleSidebar = () => {
+                setIsSidebarOpen(!isSidebarOpen);
+            };
+
+            const handleNewQuestion = () => {
+                setShowInitialSearch(true);
+                setCurrentQuestion(null);
+            };
+
+            const handleHistoryQuestionClick = (question) => {
+                setShowInitialSearch(false);
+                setCurrentQuestion(question);
+            };
+
+            return (
+                <div className="flex h-screen bg-striped">
+                    <Sidebar 
+                        isOpen={isSidebarOpen} 
+                        toggleSidebar={toggleSidebar} 
+                        onNewQuestion={handleNewQuestion}
+                        historyQuestions={historyQuestions}
+                        onHistoryQuestionClick={handleHistoryQuestionClick}
+                    />
+                    <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+                        <main className="flex-1 overflow-hidden flex flex-col">
+                            <SearchInterface 
+                                onHistoryUpdate={setHistoryQuestions}
+                                showInitialSearch={showInitialSearch}
+                                setShowInitialSearch={setShowInitialSearch}
+                                currentQuestion={currentQuestion}
+                                isLoading={isLoading}
+                                setIsLoading={setIsLoading}
+                            />
+                        </main>
+                    </div>
+                    <div className="watermark">
+                        <div className="watermark-content">QXX</div>
+                    </div>
+                </div>
+            );
+        };
+
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            ReactDOM.createRoot(rootElement).render(<App />);
+        } else {
+            console.error('Root element not found');
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes stripeMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-image: repeating-linear-gradient(
+                45deg,
+                #4a90e2,
+                #4a90e2 10px,
+                #5ca0ea 10px,
+                #5ca0ea 20px
+            );
+            background-size: 50px 50px;
+            animation: stripeMove 2s linear infinite;
+        }
+        .bg-glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        .watermark {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+        }
+        .watermark::before {
+            content: 'QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX QXX';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            right: -50%;
+            bottom: -50%;
+            font-size: 5vw;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.03);
+            white-space: nowrap;
+            line-height: 1.5;
+            transform: rotate(-45deg);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .sidebar {
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: white;
+        }
+        .sidebar-icon {
+            transition: all 0.3s ease;
+        }
+        .sidebar-icon:hover {
+            transform: scale(1.1);
+        }
+        .search-container, .result-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            transition: all 0.3s ease;
+            max-width: 800px;
+            width: 90%;
+            margin: 0 auto;
+            padding: 40px;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.45);
+        }
+        .input-field {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 1.2rem;
+            padding: 15px;
+        }
+        .input-field::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .button {
+            background: linear-gradient(45deg, #4a90e2, #5ca0ea);
+            border: none;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 15px 30px;
+        }
+        .button:hover {
+            background: linear-gradient(45deg, #5ca0ea, #4a90e2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+        }
+        .gradient-text {
+            background: linear-gradient(45deg, #ffffff, #e0e0e0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .scroll-fade {
+            mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .animate-bounce {
+            animation: bounce 0.6s infinite;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.5s ease-out forwards;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4a90e2;
+            cursor: pointer;
+        }
+
+        @keyframes moveWave {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-30px);
+            }
+        }
+    </style>
+</body>
+</html>
