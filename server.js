@@ -111,9 +111,10 @@ app.post('/api/convert-and-transcribe', upload.single('file'), async (req, res) 
     }
     
     let response;
+    let inputPath, outputPath;
     try {
-        const inputPath = path.join(__dirname, 'temp_input.mp4');
-        const outputPath = path.join(__dirname, 'temp_output.mp3');
+        inputPath = path.join(__dirname, 'temp_input.mp4');
+        outputPath = path.join(__dirname, 'temp_output.mp3');
 
         console.log('正在写入临时输入文件:', inputPath);
         console.log('文件大小:', req.file.size, 'bytes');
@@ -150,6 +151,7 @@ app.post('/api/convert-and-transcribe', upload.single('file'), async (req, res) 
         const formData = new FormData();
         formData.append('file', audioBuffer, { filename: 'audio.mp3' });
         formData.append('model', 'whisper-1');
+        formData.append('response_format', 'verbose_json');
 
         const transcribeStartTime = timer();
         console.log('开始调用OpenAI API进行转录');
@@ -173,9 +175,20 @@ app.post('/api/convert-and-transcribe', upload.single('file'), async (req, res) 
         await fsPromises.unlink(outputPath);
         console.log('临时文件删除完成');
 
+        const segments = response.data.segments.map(segment => ({
+          start: segment.start,
+          end: segment.end,
+          text: segment.text
+        }));
+
+        const paragraphs = combineSegmentsIntoParagraphs(segments);
+
         console.log('转录结果长度:', response.data.text.length, '字符');
         console.log('总耗时:', timer(startTime), 'ms');
-        res.json(response.data);
+        res.json({
+          text: response.data.text,
+          paragraphs: paragraphs
+        });
     } catch (error) {
         console.error('转换和转录错误:', error);
         console.error('错误堆栈:', error.stack);
@@ -188,8 +201,8 @@ app.post('/api/convert-and-transcribe', upload.single('file'), async (req, res) 
     } finally {
         // 确保清理临时文件
         try {
-            if (fs.existsSync(inputPath)) await fsPromises.unlink(inputPath);
-            if (fs.existsSync(outputPath)) await fsPromises.unlink(outputPath);
+            if (inputPath && fs.existsSync(inputPath)) await fsPromises.unlink(inputPath);
+            if (outputPath && fs.existsSync(outputPath)) await fsPromises.unlink(outputPath);
             console.log('临时文件清理完成');
         } catch (cleanupError) {
             console.error('清理临时文件时出错:', cleanupError);
@@ -290,6 +303,7 @@ app.post('/api/convert-and-transcribe-url', async (req, res) => {
         const formData = new FormData();
         formData.append('file', audioBuffer, { filename: 'audio.mp3' });
         formData.append('model', 'whisper-1');
+        formData.append('response_format', 'verbose_json');
 
         console.log('开始调用OpenAI API进行转录');
         console.log('请求头:', formData.getHeaders());
@@ -321,9 +335,20 @@ app.post('/api/convert-and-transcribe-url', async (req, res) => {
         await fsPromises.unlink(outputPath);
         console.log('临时文件删除完成');
 
+        const segments = response.data.segments.map(segment => ({
+          start: segment.start,
+          end: segment.end,
+          text: segment.text
+        }));
+
+        const paragraphs = combineSegmentsIntoParagraphs(segments);
+
         console.log('转录结果长度:', response.data.text.length, '字符');
         console.log('总耗时:', timer(startTime), 'ms');
-        res.json(response.data);
+        res.json({
+          text: response.data.text,
+          paragraphs: paragraphs
+        });
     } catch (error) {
         console.error('URL转换和转录错误:', error.message);
         console.error('错误发生时总耗时:', timer(startTime), 'ms');
@@ -360,6 +385,29 @@ app.post('/api/convert-and-transcribe-url', async (req, res) => {
         }
     }
 });
+
+function combineSegmentsIntoParagraphs(segments, maxParagraphDuration = 30) {
+  const paragraphs = [];
+  let currentParagraph = { start: 0, end: 0, text: '' };
+
+  segments.forEach((segment, index) => {
+    if (currentParagraph.text === '' || 
+        (segment.start - currentParagraph.end) < 2 && // 如果段落间隔小于2秒
+        (segment.end - currentParagraph.start) < maxParagraphDuration) { // 如果段落总时长小于maxParagraphDuration秒
+      currentParagraph.end = segment.end;
+      currentParagraph.text += (currentParagraph.text ? ' ' : '') + segment.text;
+    } else {
+      paragraphs.push({ ...currentParagraph });
+      currentParagraph = { start: segment.start, end: segment.end, text: segment.text };
+    }
+
+    if (index === segments.length - 1) {
+      paragraphs.push({ ...currentParagraph });
+    }
+  });
+
+  return paragraphs;
+}
 
 app.post('/api/process-transcription', async (req, res) => {
     const startTime = timer();
