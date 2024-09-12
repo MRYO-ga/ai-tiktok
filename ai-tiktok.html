@@ -222,6 +222,7 @@
             const [videoUrl, setVideoUrl] = useState('');
             const [processedTranscription, setProcessedTranscription] = useState(null);
             const [transcriptionParagraphs, setTranscriptionParagraphs] = useState([]);
+            const [isVideoSearch, setIsVideoSearch] = useState(false);
 
             useEffect(() => {
                 console.log("SearchInterface 组件已挂载");
@@ -290,7 +291,9 @@
                             isLoading: true,
                             searchedWebsites: [],
                             summary: { conclusion: '', evidence: [] },
-                            relatedQuestions: []
+                            relatedQuestions: [],
+                            isVideoSearch: isVideoSearch,
+                            videoFile: uploadedVideo
                         };
                         if (isNewQuestion) {
                             console.log("创建新对话");
@@ -378,7 +381,9 @@
                                     url: 'https://www.openai.com'
                                 }))
                             },
-                            relatedQuestions: relatedQuestions
+                            relatedQuestions: relatedQuestions,
+                            isVideoSearch: isVideoSearch,
+                            videoFile: uploadedVideo
                         };
                         currentConversation[currentConversation.length - 1] = updatedResult;
                         return updatedConversations;
@@ -421,7 +426,9 @@
                                     url: '#'
                                 }]
                             },
-                            relatedQuestions: []
+                            relatedQuestions: [],
+                            isVideoSearch: isVideoSearch,
+                            videoFile: uploadedVideo
                         };
                         currentConversation[currentConversation.length - 1] = errorResult;
                         return updatedConversations;
@@ -430,7 +437,11 @@
                     setIsLoading(false);
                     setInput('');
                     setFollowUpQuestion('');
+                    setIsVideoSearch(false);
+                    setUploadedVideo(null);
                     console.log("搜索过程完成");
+                    // 强制重新渲染
+                    setShowInitialSearch(false);
                 }
             };
 
@@ -529,6 +540,7 @@
                     setIsLoading(true);
                     setUploadProgress(0);
                     setTranscription('');
+                    setIsVideoSearch(true);
 
                     try {
                         console.log('开始处理视频文件');
@@ -552,6 +564,10 @@
                         setTranscription(data.text);
                         setTranscriptionParagraphs(data.paragraphs);
 
+                        console.log('开始总结文案');
+                        // 在这里直接调用 handleProcessTranscription
+                        await handleProcessTranscription();
+
                     } catch (error) {
                         console.error('视频处理出错:', error);
                         setTranscription("抱歉，视频处理过程中出现错误：" + error.message);
@@ -574,6 +590,7 @@
                 setIsLoading(true);
                 setUploadProgress(0);
                 setTranscription('');
+                setIsVideoSearch(true);
 
                 try {
                     console.log('开始处理视频URL:', url);
@@ -595,7 +612,9 @@
                     console.log('完整转录结果:', data.text);
                     setTranscription(data.text);
                     setTranscriptionParagraphs(data.paragraphs);
-
+                    console.log('开始总结文案');
+                    // 在这里直接调用 handleProcessTranscription
+                    await handleProcessTranscription();
                 } catch (error) {
                     console.error('视频处理出错:', error);
                     setTranscription("抱歉，视频处理过程中出现错误：" + error.message);
@@ -605,9 +624,19 @@
                 }
             };
 
+            // 添加这个 useEffect
+            useEffect(() => {
+                if (transcription) {
+                    handleProcessTranscription();
+                }
+            }, [transcription]);
+
             const handleProcessTranscription = async () => {
-                if (!transcription) return;
-                console.log("开始处理转录文字");
+                console.log("开始处理转录文字", transcription);
+                if (!transcription) {
+                    console.warn("警告：转录文字为空或未定义");
+                    return; // 如果 transcription 为空，直接返回
+                }
                 setIsLoading(true);
 
                 try {
@@ -628,51 +657,11 @@
                     setProcessedTranscription(data);
                     console.log("processedTranscription 已更新:", data);
                     
-                    // 生成相关问题
-                    const relatedQuestionsResponse = await fetch(`${BASE_URL}/chat`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            model: "gpt-3.5-turbo",
-                            messages: [
-                                { role: "system", content: "你是一个AI视频内容分析助手。请根据以下视频内容总结，生成4个相关的问题。" },
-                                { role: "user", content: data.summary }
-                            ],
-                            max_tokens: 150
-                        })
-                    });
-
-                    if (!relatedQuestionsResponse.ok) {
-                        throw new Error('生成相关问题失败');
-                    }
-
-                    const relatedQuestionsData = await relatedQuestionsResponse.json();
-                    const relatedQuestions = relatedQuestionsData.choices[0].message.content
-                        .split('\n')
-                        .filter(q => q.trim() !== '')
-                        .map(q => q.replace(/^\d+\.\s*/, ''));
-
-                    // 创建新的对话
-                    const newConversation = [{
-                        question: "视频内容总结",
-                        isLoading: false,
-                        searchedWebsites: ['本地处理'],
-                        summary: {
-                            conclusion: data.summary,
-                            evidence: [{
-                                text: data.preprocessed,
-                                source: '预处理结果',
-                                url: '#'
-                            }]
-                        },
-                        relatedQuestions: relatedQuestions
-                    }];
-
-                    setConversations(prevConversations => [...prevConversations, newConversation]);
-                    
-                    // 切换到展示处理结果的界面
+                    // 确保在这里更新 showInitialSearch 状态
                     setShowInitialSearch(false);
-                    console.log("界面已切换到处理结果展示");
+                    
+                    // 在这里调用 handleSearch 来处理转录文本
+                    await handleSearch(`总结以下视频内容：${data.summary}`, true);
 
                 } catch (error) {
                     console.error('处理转录文字时出错:', error);
@@ -821,12 +810,12 @@
             const renderTranscriptionWithTimestamps = () => {
                 return (
                     <div className="mb-8">
-                        <h3 className="text-xl font-semibold text-white mb-4">视频转录：</h3>
+                        <h3 className="text-xl font-semibold text-black mb-4">视频转录：</h3>
                         <div className="bg-white bg-opacity-10 p-4 rounded-lg max-h-60 overflow-y-auto">
                             {transcriptionParagraphs.map((paragraph, index) => (
                                 <div key={index} className="mb-4">
-                                    <p className="text-white whitespace-pre-wrap">
-                                        <span className="text-blue-300">
+                                    <p className="text-black whitespace-pre-wrap">
+                                        <span className="text-blue-600">
                                             [{formatTime(paragraph.start)} - {formatTime(paragraph.end)}]
                                         </span>
                                         {' '}{paragraph.text}
@@ -1021,6 +1010,9 @@
                                                                         <p className="text-gray-700 text-lg">{result.question}</p>
                                                                     </div>
                                                                 )}
+                                                                {result.isVideoSearch && result.videoFile && (
+                                                                    <VideoPlayer videoFile={result.videoFile} />
+                                                                )}
                                                                 {steps.websites && (
                                                                     <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
                                                                         <h3 className="text-xl font-semibold mb-2">已搜索的网站：</h3>
@@ -1073,6 +1065,12 @@
                                                                                 </ul>
                                                                             </div>
                                                                         )}
+                                                                    </div>
+                                                                )}
+                                                                {result.isVideoSearch && transcriptionParagraphs.length > 0 && (
+                                                                    <div className="mt-4">
+                                                                        <h3 className="text-xl font-semibold text-black mb-2">视频转录：</h3>
+                                                                        {renderTranscriptionWithTimestamps()}
                                                                     </div>
                                                                 )}
                                                                 {steps.relatedQuestions && (
