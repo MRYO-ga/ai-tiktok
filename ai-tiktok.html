@@ -282,15 +282,14 @@
                 }
             };
 
-            const handleSearch = async (question, isNewQuestion = false) => {
+            const handleSearch = async (question, isNewQuestion = false, isVideoSearch = false) => {
                 if (!question.trim()) return;
-                console.log(`开始搜索: "${question}", 是否新问题: ${isNewQuestion}`);
+                console.log(`开始搜索: "${question}", 是否新问题: ${isNewQuestion}, 是否视频搜索: ${isVideoSearch}`);
                 setIsLoading(true);
                 setShowInitialSearch(false);
                 onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
 
                 try {
-                    // 立即添加新的对话或结果，但标记为加载中
                     setConversations(prevConversations => {
                         const newResult = {
                             question: question,
@@ -355,7 +354,6 @@
                         throw new Error('API 返回的答案格式不正确');
                     }
 
-                    // 解析回答
                     console.log("开始解析API返回的答案");
                     const answerMatch = answer.match(/回答：([\s\S]*?)(?:\n\n|$)/);
                     const mainAnswer = answerMatch && answerMatch[1] ? answerMatch[1].trim() : answer;
@@ -371,17 +369,16 @@
                         : [];
 
                     console.log("解析完成，更新对话内容");
-                    // 更新对话内容
                     setConversations(prevConversations => {
                         const updatedConversations = [...prevConversations];
                         const currentConversation = updatedConversations[updatedConversations.length - 1];
                         const updatedResult = {
                             question: question,
                             isLoading: false,
-                            searchedWebsites: ['https://www.openai.com'],
+                            searchedWebsites: isVideoSearch ? [] : ['https://www.openai.com'],
                             summary: {
                                 conclusion: mainAnswer,
-                                evidence: evidence.map(e => ({
+                                evidence: isVideoSearch ? [] : evidence.map(e => ({
                                     text: e,
                                     source: 'OpenAI',
                                     url: 'https://www.openai.com'
@@ -395,7 +392,6 @@
                         return updatedConversations;
                     });
 
-                    // 逐步显示新结果的内容
                     const newConversationId = isNewQuestion ? conversations.length : conversations.length - 1;
                     const newResultId = isNewQuestion ? 0 : conversations[newConversationId].length - 1;
                     
@@ -446,12 +442,10 @@
                     setIsVideoSearch(false);
                     setUploadedVideo(null);
                     console.log("搜索过程完成");
-                    // 强制重新渲染
                     setShowInitialSearch(false);
                 }
             };
 
-            // 添加这个函数来理滚动
             const scrollToBottom = () => {
                 if (resultsContainerRef.current) {
                     resultsContainerRef.current.scrollTop = resultsContainerRef.current.scrollHeight;
@@ -460,7 +454,7 @@
 
             useEffect(() => {
                 if (currentQuestion) {
-                    setSearchResults([]); // 清空之前的结果
+                    setSearchResults([]);
                     handleSearch(currentQuestion);
                 }
             }, [currentQuestion]);
@@ -486,7 +480,6 @@
                 const isExpanded = expandedSummaries[index];
                 const shouldShowExpand = evidence.text.length > 200;
                 
-                // 使用正则表达式匹配 <important> 标签
                 const processedText = evidence.text.split(/<important>|<\/important>/).map((part, partIndex) => {
                     if (partIndex % 2 === 1) {
                         return <ImportantSentence key={partIndex}>{part}</ImportantSentence>;
@@ -522,7 +515,6 @@
             };
 
             useEffect(() => {
-                // 当有新的对话时，自动设置右侧显示的证据
                 if (conversations.length > 0) {
                     const latestConversation = conversations[conversations.length - 1];
                     const latestResult = latestConversation[latestConversation.length - 1];
@@ -573,7 +565,6 @@
                         setTranscriptionParagraphs(data.paragraphs);
 
                         console.log('开始总结文案');
-                        // 在这里直接调用 handleProcessTranscription
                         await handleProcessTranscription();
 
                     } catch (error) {
@@ -621,7 +612,6 @@
                     setTranscription(data.text);
                     setTranscriptionParagraphs(data.paragraphs);
                     console.log('开始总结文案');
-                    // 在这里直接调用 handleProcessTranscription
                     await handleProcessTranscription();
                 } catch (error) {
                     console.error('视频处理出错:', error);
@@ -632,7 +622,6 @@
                 }
             };
 
-            // 添加这个 useEffect
             useEffect(() => {
                 if (transcription) {
                     handleProcessTranscription();
@@ -643,7 +632,7 @@
                 console.log("开始处理转录文字", transcription);
                 if (!transcription) {
                     console.warn("警告：转录文字为空或未定义");
-                    return; // 如果 transcription 为空，直接返回
+                    return;
                 }
                 setIsLoading(true);
 
@@ -665,11 +654,9 @@
                     setProcessedTranscription(data);
                     console.log("processedTranscription 已更新:", data);
                     
-                    // 确保在这里更新 showInitialSearch 状态
                     setShowInitialSearch(false);
                     
-                    // 在这里调用 handleSearch 来处理转录文本
-                    await handleSearch(`总结以下视频内容：${data.summary}`, true);
+                    await handleSearch(`总结以下视频内容：${data.summary}`, true, true);
 
                 } catch (error) {
                     console.error('处理转录文字时出错:', error);
@@ -684,7 +671,7 @@
                 <span 
                     style={{
                         fontWeight: 'bold',
-                        color: '#FF4500', // 使用醒目的颜色，这里是橙红色
+                        color: '#FF4500',
                     }}
                 >
                     {children}
@@ -1021,7 +1008,7 @@
                                                                 {result.isVideoSearch && result.videoFile && (
                                                                     <VideoPlayer videoFile={result.videoFile} />
                                                                 )}
-                                                                {steps.websites && (
+                                                                {!result.isVideoSearch && steps.websites && result.searchedWebsites && result.searchedWebsites.length > 0 && (
                                                                     <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
                                                                         <h3 className="text-xl font-semibold mb-2">已搜索的网站：</h3>
                                                                         <ul className="list-disc list-inside text-blue-500 text-lg">
@@ -1037,7 +1024,7 @@
                                                                     <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
                                                                         <h3 className="text-xl font-semibold mb-2">总结：</h3>
                                                                         <p className="text-gray-700 mb-2 text-lg"><strong>结论：</strong> {result.summary.conclusion}</p>
-                                                                        {result.summary.importantSentences && result.summary.importantSentences.length > 0 && (
+                                                                        {!result.isVideoSearch && result.summary.importantSentences && result.summary.importantSentences.length > 0 && (
                                                                             <div>
                                                                                 <p className="text-gray-700 text-lg"><strong>重要句子：</strong></p>
                                                                                 {result.summary.importantSentences.map((sentence, idx) => (
@@ -1047,41 +1034,27 @@
                                                                                 ))}
                                                                             </div>
                                                                         )}
-                                                                        <p className="text-gray-700 text-lg"><strong>依据：</strong></p>
-                                                                        {result.summary.evidence.map((item, evidenceIndex) => (
-                                                                            <div key={evidenceIndex} className={`mb-2 text-lg ${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${evidenceIndex * 300}ms`}}>
-                                                                                {item.text.split(/<important>|<\/important>/).map((part, partIndex) => 
-                                                                                    partIndex % 2 === 1 ? <ImportantSentence key={partIndex}>{part}</ImportantSentence> : part
-                                                                                )}
-                                                                                <span 
-                                                                                    className="cursor-pointer text-blue-500 hover:underline ml-2"
-                                                                                    onClick={() => setSelectedEvidence(result.summary.evidence)}
-                                                                                >
-                                                                                    [{evidenceIndex + 1}]
-                                                                                </span>
-                                                                            </div>
-                                                                        ))}
-                                                                        {result.summary.importantSentences && (
-                                                                            <div className="mt-4">
-                                                                                <h3 className="text-xl font-semibold mb-2">重要句子：</h3>
-                                                                                <ul className="list-disc list-inside text-blue-500 text-lg">
-                                                                                    {result.summary.importantSentences.map((sentence, sentenceIndex) => (
-                                                                                        <li key={sentenceIndex} className={`${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${sentenceIndex * 300}ms`}}>
-                                                                                            {sentence}
-                                                                                        </li>
-                                                                                    ))}
-                                                                                </ul>
+                                                                        {!result.isVideoSearch && result.summary.evidence && result.summary.evidence.length > 0 && (
+                                                                            <div>
+                                                                                <p className="text-gray-700 text-lg"><strong>依据：</strong></p>
+                                                                                {result.summary.evidence.map((item, evidenceIndex) => (
+                                                                                    <div key={evidenceIndex} className={`mb-2 text-lg ${index === conversation.length - 1 ? "animate-slide-up" : ""}`} style={{animationDelay: `${evidenceIndex * 300}ms`}}>
+                                                                                        {item.text.split(/<important>|<\/important>/).map((part, partIndex) => 
+                                                                                            partIndex % 2 === 1 ? <ImportantSentence key={partIndex}>{part}</ImportantSentence> : part
+                                                                                        )}
+                                                                                        <span 
+                                                                                            className="cursor-pointer text-blue-500 hover:underline ml-2"
+                                                                                            onClick={() => setSelectedEvidence(result.summary.evidence)}
+                                                                                        >
+                                                                                            [{evidenceIndex + 1}]
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ))}
                                                                             </div>
                                                                         )}
                                                                     </div>
                                                                 )}
-                                                                {result.isVideoSearch && transcriptionParagraphs.length > 0 && (
-                                                                    <div className="mt-4">
-                                                                        <h3 className="text-xl font-semibold text-black mb-2">视频转录：</h3>
-                                                                        {renderTranscriptionWithTimestamps()}
-                                                                    </div>
-                                                                )}
-                                                                {steps.relatedQuestions && (
+                                                                {steps.relatedQuestions && result.relatedQuestions && result.relatedQuestions.length > 0 && (
                                                                     <div className={`${index === conversation.length - 1 ? "animate-slide-up" : ""} ${index !== 0 ? "mt-4" : ""}`}>
                                                                         <h3 className="text-xl font-semibold mb-2">相关问题：</h3>
                                                                         <ul className="list-disc list-inside text-blue-500 text-lg">
@@ -1107,7 +1080,18 @@
                                     )}
                                 </div>
                                 <div className="w-1/3 p-4 bg-gray-100 overflow-auto">
-                                    {selectedEvidence && selectedEvidence.map((evidence, index) => renderEvidenceDetails(evidence, index))}
+                                    {conversations.length > 0 && conversations[conversations.length - 1].length > 0 && (
+                                        <>
+                                            {!conversations[conversations.length - 1][conversations[conversations.length - 1].length - 1].isVideoSearch && 
+                                                selectedEvidence && selectedEvidence.map((evidence, index) => renderEvidenceDetails(evidence, index))}
+                                            {conversations[conversations.length - 1][conversations[conversations.length - 1].length - 1].isVideoSearch && transcriptionParagraphs.length > 0 && (
+                                                <div>
+                                                    <h3 className="text-xl font-semibold text-black mb-2">视频转录：</h3>
+                                                    {renderTranscriptionWithTimestamps()}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <div className="p-8 border-t">
