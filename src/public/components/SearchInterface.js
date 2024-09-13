@@ -16,6 +16,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     const [videoUrl, setVideoUrl] = useState('');
     const [transcriptionParagraphs, setTranscriptionParagraphs] = useState([]);
     const [isVideoSearch, setIsVideoSearch] = useState(false);
+    const [videoData, setVideoData] = useState(null);
 
     const BASE_URL = 'http://localhost:3000/api';
 
@@ -34,53 +35,76 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         setShowInitialSearch(false);
         onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
 
-        try {
-            setConversations(prevConversations => {
-                const newResult = {
-                    question: question,
-                    isLoading: true,
-                    searchedWebsites: [],
-                    summary: { conclusion: '', evidence: [] },
-                    relatedQuestions: [],
-                    isVideoSearch: isVideoSearch,
-                    videoFile: uploadedVideo
-                };
-                if (isNewQuestion) {
-                    console.log("创建新对话");
-                    return [...prevConversations, [newResult]];
-                } else {
-                    console.log("向现有对话添加新结果");
-                    const updatedConversations = [...prevConversations];
-                    updatedConversations[updatedConversations.length - 1].push(newResult);
-                    return updatedConversations;
-                }
-            });
+        // 立即更新对话状态,显示加载中的结果
+        setConversations(prevConversations => {
+            const newResult = {
+                question: question,
+                isLoading: true,
+                searchedWebsites: [],
+                summary: { conclusion: '', evidence: [] },
+                relatedQuestions: [],
+                isVideoSearch: isVideoSearch,
+                videoFile: uploadedVideo
+            };
+            if (isNewQuestion) {
+                console.log("创建新对话");
+                return [...prevConversations, [newResult]];
+            } else {
+                console.log("向现有对话添加新结果");
+                const updatedConversations = [...prevConversations];
+                updatedConversations[updatedConversations.length - 1].push(newResult);
+                return updatedConversations;
+            }
+        });
 
-            console.log("发送请求到API");
+        try {
+            // 1. 调用接口获取视频数据
+            const videoResponse = await axios.get(`${BASE_URL}/get-video-data`, { params: { query: question } });
+            const fetchedVideoData = videoResponse.data;
+            setVideoData(fetchedVideoData);
+
+            // 2. 获取视频转录文字和处理评论数据
+            const transcriptionsAndComments = await Promise.all(fetchedVideoData.map(async (video) => {
+                try {
+                    const transcription = await axios.post(`${BASE_URL}/convert-and-transcribe-url`, { url: video.url });
+                    return {
+                        transcription: transcription.data.text,
+                        comments: video.topComments.map(comment => comment.content).join(' ')
+                    };
+                } catch (error) {
+                    console.error(`处理视频 ${video.url} 时出错:`, error);
+                    return {
+                        transcription: "无法获取视频转录",
+                        comments: video.topComments.map(comment => comment.content).join(' ')
+                    };
+                }
+            }));
+
+            // 3. 将数据发送给AI进行分析
             const response = await fetch(`${BASE_URL}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
                     messages: [
-                        { role: "system", content: `你是一个AI视频搜索助手。请按以下格式回答用户的问题：
+                        { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容和评论,然后按以下格式回答用户的问题：
 
-                                回答：
-                                [在这里提供对用户问题的详细答]
+                        回答：
+                        [在这里提供对用户问题的详细答案,包括对视频内容的分析和用户观点的总结]
 
-                                证据：
-                                1. [证据1]
-                                2. [证据2]
-                                3. [证据3]
+                        证据：
+                        1. [从视频内容或评论中提取的支持答案的证据1]
+                        2. [证据2]
+                        3. [证据3]
 
-                                相关问题：
-                                1. [相关问题1]
-                                2. [相关问题2]
-                                3. [相关问题3]
-                                4. [相关问题4]
+                        相关问题：
+                        1. [根据视频内容生成的相关问题1]
+                        2. [相关问题2]
+                        3. [相关问题3]
+                        4. [相关问题4]
 
-                                请确保严格遵循这个格式。` },
-                        { role: "user", content: question }
+                        请确保严格遵循这个格式。` },
+                        { role: "user", content: `问题: ${question}\n视频内容和评论: ${JSON.stringify(transcriptionsAndComments)}\n视频数据: ${JSON.stringify(fetchedVideoData)}` }
                     ],
                     max_tokens: 1000
                 })
@@ -103,7 +127,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             const answerMatch = answer.match(/回答：([\s\S]*?)(?:\n\n|$)/);
             const mainAnswer = answerMatch && answerMatch[1] ? answerMatch[1].trim() : answer;
 
-            const evidenceMatch = answer.match(/证据([\s\S]*?)(?:\n\n|$)/);
+            const evidenceMatch = answer.match(/证据：([\s\S]*?)(?:\n\n|$)/);
             const evidence = evidenceMatch && evidenceMatch[1] 
                 ? evidenceMatch[1].split('\n').filter(e => e.trim()).map(e => e.replace(/^\d+\.\s*/, ''))
                 : [];
@@ -114,50 +138,34 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 : [];
 
             console.log("解析完成，更新对话内容");
+
+            // 更新对话内容
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
                 const updatedResult = {
                     question: question,
                     isLoading: false,
-                    searchedWebsites: isVideoSearch ? [] : ['https://www.openai.com'],
+                    searchedWebsites: fetchedVideoData.map(video => video.url),
                     summary: {
                         conclusion: mainAnswer,
-                        evidence: isVideoSearch ? [] : evidence.map(e => ({
+                        evidence: evidence.map((e, index) => ({
                             text: e,
-                            source: 'OpenAI',
-                            url: 'https://www.openai.com'
+                            source: fetchedVideoData[index % fetchedVideoData.length].title,
+                            url: fetchedVideoData[index % fetchedVideoData.length].url
                         }))
                     },
                     relatedQuestions: relatedQuestions,
-                    isVideoSearch: isVideoSearch,
-                    videoFile: uploadedVideo
+                    isVideoSearch: true,
+                    videoData: fetchedVideoData
                 };
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
             });
 
-            const newConversationId = isNewQuestion ? conversations.length : conversations.length - 1;
-            const newResultId = isNewQuestion ? 0 : conversations[newConversationId].length - 1;
-            
-            const showStepWithScroll = (step) => {
-                setDisplaySteps(prev => ({
-                    ...prev,
-                    [`${newConversationId}-${newResultId}`]: {
-                        ...prev[`${newConversationId}-${newResultId}`],
-                        [step]: true
-                    }
-                }));
-                setTimeout(() => scrollToBottom(), 100);
-            };
-
-            setTimeout(() => showStepWithScroll('question'), 500);
-            setTimeout(() => showStepWithScroll('websites'), 1000);
-            setTimeout(() => showStepWithScroll('summary'), 1500);
-            setTimeout(() => showStepWithScroll('relatedQuestions'), 2000);
-
         } catch (error) {
             console.error('搜索过程中错误:', error);
+            // 更新对话状态,显示错误信息
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
@@ -165,13 +173,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     question: question,
                     isLoading: false,
                     searchedWebsites: [],
-                    summary: {
-                        conclusion: '抱歉，搜索过程中出现错误。',
-                        evidence: [{
-                            text: `错误信息: ${error.message}`,
-                            source: '错误详情',
-                            url: '#'
-                        }]
+                    summary: { 
+                        conclusion: '抱歉,搜索过程中出现错误。',
+                        evidence: [{ text: error.message, source: '错误信息', url: '#' }]
                     },
                     relatedQuestions: [],
                     isVideoSearch: isVideoSearch,
@@ -450,6 +454,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             transcriptionParagraphs={transcriptionParagraphs}
                             renderEvidenceDetails={renderEvidenceDetails}
                             renderTranscriptionWithTimestamps={renderTranscriptionWithTimestamps}
+                            videoData={videoData}
                         />
                     </div>
                     <FollowUpInput 

@@ -49,13 +49,13 @@ const HotTopics = ({ handleSearch }) => {
 
     return (
         <div className="mb-10">
-            <h3 className="text-2xl font-semibold text-blue-700 mb-6">热搜索：</h3>
-            <div className="flex flex-wrap justify-center gap-4">
+            <h3 className="text-2xl font-semibold text-gray-800 mb-4">热门搜索</h3>
+            <div className="flex flex-wrap gap-3">
                 {hotTopics.map((topic, index) => (
                     <button
                         key={index}
                         onClick={() => handleSearch(topic, true)}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 py-3 px-6 rounded-full transition-all duration-300 transform hover:scale-105 hover:shadow-md"
+                        className="hot-topic-button"
                     >
                         {topic}
                     </button>

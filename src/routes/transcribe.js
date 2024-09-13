@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer();
 const { convertAndTranscribe, convertAndTranscribeUrl, processTranscription } = require('../services/transcriptionService');
+const { BASE_URL } = require('../config');  // 添加这行
 
 router.post('/convert-and-transcribe', upload.single('file'), async (req, res, next) => {
   try {
@@ -15,8 +16,17 @@ router.post('/convert-and-transcribe', upload.single('file'), async (req, res, n
 
 router.post('/convert-and-transcribe-url', async (req, res, next) => {
   try {
-    const result = await convertAndTranscribeUrl(req.body.url);
-    res.json(result);
+    // const result = await convertAndTranscribeUrl(req.body.url);
+    // res.json(result);
+    // 暂时返回模拟数据
+    const mockTranscription = {
+      text: "这是一个模拟的视频转录文本。实际应用中,这里会是真实的视频内容转录。",
+      paragraphs: [
+        { start: 0, end: 5, text: "这是一个模拟的视频转录文本。" },
+        { start: 5, end: 10, text: "实际应用中,这里会是真实的视频内容转录。" }
+      ]
+    };
+    res.json(mockTranscription);
   } catch (error) {
     next(error);
   }

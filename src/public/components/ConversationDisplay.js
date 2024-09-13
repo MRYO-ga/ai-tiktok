@@ -1,7 +1,7 @@
 const ConversationDisplay = ({ conversations, displaySteps, VideoPlayer, setSelectedEvidence, handleSearch, isLoading }) => (
-    <div className="flex-1 overflow-auto space-y-6 p-8">
+    <div className="flex-1 overflow-auto space-y-4 p-4">
         {conversations.map((conversation, convIndex) => (
-            <div key={convIndex} className="result-card p-6 space-y-6">
+            <div key={convIndex} className="bg-white p-6 rounded-lg shadow space-y-6 animate-slide-up">
                 {conversation.map((result, index) => {
                     const stepKey = `${convIndex}-${index}`;
                     const steps = displaySteps[stepKey] || { question: true, websites: true, summary: true, relatedQuestions: true };
