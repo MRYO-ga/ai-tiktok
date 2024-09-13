@@ -24,10 +24,17 @@ router.post('/convert-and-transcribe-url', async (req, res, next) => {
 
 router.post('/process-transcription', async (req, res, next) => {
   try {
-    const result = await processTranscription(req.body.transcription);
+    console.log("收到处理转录请求:", req.body);
+    const { transcription } = req.body;
+    if (!transcription) {
+      return res.status(400).json({ error: '缺少转录文本' });
+    }
+    const result = await processTranscription(transcription);
+    console.log("转录处理完成，返回结果:", result);
     res.json(result);
   } catch (error) {
-    next(error);
+    console.error("处理转录时出错:", error);
+    res.status(500).json({ error: '处理转录时发生错误', details: error.message });
   }
 });
 

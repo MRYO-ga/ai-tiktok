@@ -62,5 +62,4 @@ const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHis
     );
 };
 
-// 修改这里，使用 window.Sidebar 来导出组件
 window.Sidebar = Sidebar;

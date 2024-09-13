@@ -32,25 +32,26 @@ const App = () => {
 
     return (
         <div className="flex h-screen bg-striped">
-            <Sidebar 
-                isOpen={isSidebarOpen} 
-                toggleSidebar={toggleSidebar} 
-                onNewQuestion={handleNewQuestion}
-                historyQuestions={historyQuestions}
-                onHistoryQuestionClick={handleHistoryQuestionClick}
-            />
-            <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
-                <SearchInterface 
-                    onHistoryUpdate={updateHistory}
-                    showInitialSearch={showInitialSearch}
-                    setShowInitialSearch={setShowInitialSearch}
-                    currentQuestion={currentQuestion}
-                    isLoading={isLoading}
-                    setIsLoading={setIsLoading}
+            {window.Sidebar && (
+                <window.Sidebar 
+                    isOpen={isSidebarOpen} 
+                    toggleSidebar={toggleSidebar} 
+                    onNewQuestion={handleNewQuestion}
+                    historyQuestions={historyQuestions}
+                    onHistoryQuestionClick={handleHistoryQuestionClick}
                 />
-            </div>
-            <div className="watermark">
-                <div className="watermark-content">QXX</div>
+            )}
+            <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+                {window.SearchInterface && (
+                    <window.SearchInterface 
+                        onHistoryUpdate={updateHistory}
+                        showInitialSearch={showInitialSearch}
+                        setShowInitialSearch={setShowInitialSearch}
+                        currentQuestion={currentQuestion}
+                        isLoading={isLoading}
+                        setIsLoading={setIsLoading}
+                    />
+                )}
             </div>
         </div>
     );
