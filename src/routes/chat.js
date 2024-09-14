@@ -2,13 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { chatCompletion } = require('../services/openaiService');
 
-router.post('/', async (req, res, next) => {
+router.post('/chat', async (req, res, next) => {
   try {
     const response = await chatCompletion(req.body);
     res.json(response);
   } catch (error) {
     if (error.response) {
-      console.error("OpenAI API 错误响应:", error.response.data);
       console.error("OpenAI API 错误状态码:", error.response.status);
       res.status(error.response.status).json({ 
         error: '处理请求时发生错误', 

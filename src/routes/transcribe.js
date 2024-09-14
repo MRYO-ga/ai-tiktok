@@ -4,6 +4,7 @@ const multer = require('multer');
 const upload = multer();
 const { convertAndTranscribe, convertAndTranscribeUrl, processTranscription } = require('../services/transcriptionService');
 const { BASE_URL } = require('../config');  // 添加这行
+const transcriptionService = require('../services/transcriptionService');
 
 router.post('/convert-and-transcribe', upload.single('file'), async (req, res, next) => {
   try {
@@ -16,17 +17,17 @@ router.post('/convert-and-transcribe', upload.single('file'), async (req, res, n
 
 router.post('/convert-and-transcribe-url', async (req, res, next) => {
   try {
-    // const result = await convertAndTranscribeUrl(req.body.url);
-    // res.json(result);
+    const result = await convertAndTranscribeUrl(req.body.url);
+    res.json(result);
     // 暂时返回模拟数据
-    const mockTranscription = {
-      text: "这是一个模拟的视频转录文本。实际应用中,这里会是真实的视频内容转录。",
-      paragraphs: [
-        { start: 0, end: 5, text: "这是一个模拟的视频转录文本。" },
-        { start: 5, end: 10, text: "实际应用中,这里会是真实的视频内容转录。" }
-      ]
-    };
-    res.json(mockTranscription);
+    // const mockTranscription = {
+    //   text: "这是一个模拟的视频转录文本。实际应用中,这里会是真实的视频内容转录。",
+    //   paragraphs: [
+    //     { start: 0, end: 5, text: "这是一个模拟的视频转录文本。" },
+    //     { start: 5, end: 10, text: "实际应用中,这里会是真实的视频内容转录。" }
+    //   ]
+    // };
+    // res.json(mockTranscription);
   } catch (error) {
     next(error);
   }
@@ -34,7 +35,6 @@ router.post('/convert-and-transcribe-url', async (req, res, next) => {
 
 router.post('/process-transcription', async (req, res, next) => {
   try {
-    console.log("收到处理转录请求:", req.body);
     const { transcription } = req.body;
     if (!transcription) {
       return res.status(400).json({ error: '缺少转录文本' });
@@ -43,8 +43,27 @@ router.post('/process-transcription', async (req, res, next) => {
     console.log("转录处理完成，返回结果:", result);
     res.json(result);
   } catch (error) {
-    console.error("处理转录时出错:", error);
     res.status(500).json({ error: '处理转录时发生错误', details: error.message });
+  }
+});
+
+router.post('/transcribe', async (req, res) => {
+  try {
+    const { audioUrl } = req.body;
+    console.log('收到转录请求，音频 URL:', audioUrl);
+    const transcription = await transcriptionService.transcribeAudio(audioUrl);
+    console.log('转录完成:', transcription);
+    res.json({ transcription });
+  } catch (error) {
+    if (error.response) {
+      res.status(error.response.status).json({ 
+        error: '转录过程中出现错误', 
+        message: error.response.data.error || error.message,
+        details: error.response.data
+      });
+    } else {
+      res.status(500).json({ error: '转录过程中出现错误', message: error.message });
+    }
   }
 });
 

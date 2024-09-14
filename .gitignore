@@ -26,6 +26,6 @@ yarn-error.log
 # 忽略构建输出目录（如果有的话）
 /dist
 /build
-
+/TikTokDownloader
 # 忽略临时文件
 *.tmp

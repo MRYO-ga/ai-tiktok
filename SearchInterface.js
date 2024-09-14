@@ -23,7 +23,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     const [transcriptionParagraphs, setTranscriptionParagraphs] = useState([]);
     const [isVideoSearch, setIsVideoSearch] = useState(false);
 
-    const BASE_URL = 'http://localhost:3000/api';
+    const BASE_URL = 'http://localhost:3001/api';
 
     useEffect(() => {
         console.log("SearchInterface 组件已挂载");

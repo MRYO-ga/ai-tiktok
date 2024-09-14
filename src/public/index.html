@@ -9,14 +9,16 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <div id="root" class="flex h-screen"></div>
     
-    <!-- 加载组件文件 -->
+    <!-- 先加载服务 -->
+    <script src="/js/services.js"></script>
+    
+    <!-- 然后加载组件 -->
     <script type="text/babel" src="/components/Sidebar.js"></script>
     <script type="text/babel" src="/components/SearchBar.js"></script>
     <script type="text/babel" src="/components/ModelSelector.js"></script>

@@ -1,26 +1,29 @@
-const { useState, useEffect, useRef } = React;
-const axios = window.axios;
+// 移除 export 语句
+// const { useState, useEffect, useRef } = React;
 
+// 使用全局变量
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
-    const [input, setInput] = useState('');
-    const [selectedModel, setSelectedModel] = useState('GPT-3.5');
-    const [followUpQuestion, setFollowUpQuestion] = useState('');
+    const [input, setInput] = React.useState('');
+    const [selectedModel, setSelectedModel] = React.useState('GPT-3.5');
+    const [followUpQuestion, setFollowUpQuestion] = React.useState('');
     const models = ['gpt-3.5-turbo', 'gpt-4'];
-    const resultsContainerRef = useRef(null);
-    const [conversations, setConversations] = useState([]);
-    const [displaySteps, setDisplaySteps] = useState({});
-    const [selectedEvidence, setSelectedEvidence] = useState(null);
-    const [uploadedVideo, setUploadedVideo] = useState(null);
-    const [fileInputKey, setFileInputKey] = useState(0);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [videoUrl, setVideoUrl] = useState('');
-    const [transcriptionParagraphs, setTranscriptionParagraphs] = useState([]);
-    const [isVideoSearch, setIsVideoSearch] = useState(false);
-    const [videoData, setVideoData] = useState(null);
+    const resultsContainerRef = React.useRef(null);
+    const [conversations, setConversations] = React.useState([]);
+    const [displaySteps, setDisplaySteps] = React.useState({});
+    const [selectedEvidence, setSelectedEvidence] = React.useState(null);
+    const [uploadedVideo, setUploadedVideo] = React.useState(null);
+    const [fileInputKey, setFileInputKey] = React.useState(0);
+    const [uploadProgress, setUploadProgress] = React.useState(0);
+    const [videoUrl, setVideoUrl] = React.useState('');
+    const [transcriptionParagraphs, setTranscriptionParagraphs] = React.useState([]);
+    const [isVideoSearch, setIsVideoSearch] = React.useState(false);
+    const [videoData, setVideoData] = React.useState(null);
+    const [searchResults, setSearchResults] = React.useState([]);
+    const [summary, setSummary] = React.useState('');
+  
+    const BASE_URL = 'http://localhost:3001/api';
 
-    const BASE_URL = 'http://localhost:3000/api';
-
-    useEffect(() => {
+    React.useEffect(() => {
         console.log("SearchInterface 组件已挂载");
         console.log("初始状态:", { showInitialSearch, currentQuestion, isLoading });
         return () => {
@@ -58,56 +61,51 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         });
 
         try {
-            // 1. 调用接口获取视频数据
-            const videoResponse = await axios.get(`${BASE_URL}/get-video-data`, { params: { query: question } });
-            const fetchedVideoData = videoResponse.data;
-            setVideoData(fetchedVideoData);
+            // 1. 获取搜索结果
+            console.log("开始获取搜索结果");
+            const results = await window.tiktokDownloaderService.getSearchResults(question);
+            console.log("获取搜索结果", results);
+            setSearchResults(results);
 
-            // 2. 获取视频转录文字和处理评论数据
-            const transcriptionsAndComments = await Promise.all(fetchedVideoData.map(async (video) => {
+            // 2. 获取音频URL并转录
+            const transcriptions = await Promise.all(results.slice(0, 1).map(async (result) => {
+                const audioUrl = result.music_url;
+                console.log("单个音频转换", audioUrl);
                 try {
-                    const transcription = await axios.post(`${BASE_URL}/convert-and-transcribe-url`, { url: video.url });
-                    return {
-                        transcription: transcription.data.text,
-                        comments: video.topComments.map(comment => comment.content).join(' ')
-                    };
+                    const transcription = await window.transcribeAudio(audioUrl);
+                    console.log("单个音频转换结果", transcription);
+                    return transcription || "该视频没有可转录的语音内容";
                 } catch (error) {
-                    console.error(`处理视频 ${video.url} 时出错:`, error);
-                    return {
-                        transcription: "无法获取视频转录",
-                        comments: video.topComments.map(comment => comment.content).join(' ')
-                    };
+                    console.error("音频转换失败:", error);
+                    return "音频转换失败";
                 }
             }));
+            console.log("多个转换结果", transcriptions);
 
             // 3. 将数据发送给AI进行分析
-            const response = await fetch(`${BASE_URL}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
-                    messages: [
-                        { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容和评论,然后按以下格式回答用户的问题：
+            const response = await window.openaiService.chatCompletion({
+                model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
+                messages: [
+                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容,然后按以下格式回答用户的问题：
 
-                        回答：
-                        [在这里提供对用户问题的详细答案,包括对视频内容的分析和用户观点的总结]
+                    回答：
+                    [在这里提供对用户问题的详细答案,包括对视频内容的分析和总结。如果某些视频没有语音内容，请说明这一点。]
 
-                        证据：
-                        1. [从视频内容或评论中提取的支持答案的证据1]
-                        2. [证据2]
-                        3. [证据3]
+                    证据：
+                    1. [从视频内容中提取的支持答案的证据1]
+                    2. [证据2]
+                    3. [证据3]
 
-                        相关问题：
-                        1. [根据视频内容生成的相关问题1]
-                        2. [相关问题2]
-                        3. [相关问题3]
-                        4. [相关问题4]
+                    相关问题：
+                    1. [根据视频内容生成的相关问题1]
+                    2. [相关问题2]
+                    3. [相关问题3]
+                    4. [相关问题4]
 
-                        请确保严格遵循这个格式。` },
-                        { role: "user", content: `问题: ${question}\n视频内容和评论: ${JSON.stringify(transcriptionsAndComments)}\n视频数据: ${JSON.stringify(fetchedVideoData)}` }
-                    ],
-                    max_tokens: 1000
-                })
+                    请确保严格遵循这个格式。` },
+                    { role: "user", content: `问题: ${question}\n视频内容: ${transcriptions.join('\n')}` }
+                ],
+                max_tokens: 1000
             });
 
             if (!response.ok) {
@@ -146,18 +144,18 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 const updatedResult = {
                     question: question,
                     isLoading: false,
-                    searchedWebsites: fetchedVideoData.map(video => video.url),
+                    searchedWebsites: results.map(result => result.download_url),
                     summary: {
                         conclusion: mainAnswer,
                         evidence: evidence.map((e, index) => ({
                             text: e,
-                            source: fetchedVideoData[index % fetchedVideoData.length].title,
-                            url: fetchedVideoData[index % fetchedVideoData.length].url
+                            source: results[index % results.length].title,
+                            url: results[index % results.length].download_url
                         }))
                     },
                     relatedQuestions: relatedQuestions,
                     isVideoSearch: true,
-                    videoData: fetchedVideoData
+                    videoData: results
                 };
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
@@ -203,7 +201,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         }
     };
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (currentQuestion) {
             setConversations([]);
             handleSearch(currentQuestion);
@@ -470,4 +468,5 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     );
 };
 
+// 将组件挂载到全局对象上
 window.SearchInterface = SearchInterface;

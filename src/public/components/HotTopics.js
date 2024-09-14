@@ -5,7 +5,7 @@ const HotTopics = ({ handleSearch }) => {
     const [hotTopics, setHotTopics] = useState([]);
     const [lastHotTopicsUpdate, setLastHotTopicsUpdate] = useState(null);
 
-    const BASE_URL = 'http://localhost:3000/api';
+    const BASE_URL = 'http://localhost:3001/api';
 
     useEffect(() => {
         fetchHotTopics();
