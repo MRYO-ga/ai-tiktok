@@ -17,7 +17,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     const [videoUrl, setVideoUrl] = React.useState('');
     const [transcriptionParagraphs, setTranscriptionParagraphs] = React.useState([]);
     const [isVideoSearch, setIsVideoSearch] = React.useState(false);
-    const [videoData, setVideoData] = React.useState(null);
+    const [videoData, setVideoData] = React.useState([]);
     const [searchResults, setSearchResults] = React.useState([]);
     const [summary, setSummary] = React.useState('');
   
@@ -33,12 +33,11 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
     const handleSearch = async (question, isNewQuestion = false, isVideoSearch = false) => {
         if (!question.trim()) return;
-        console.log(`开始搜索: "${question}", 是否新问题: ${isNewQuestion}, 是否视频搜索: ${isVideoSearch}`);
+        console.log(`开始搜索: "${question}", 是否新问: ${isNewQuestion}, 是否视频搜索: ${isVideoSearch}`);
         setIsLoading(true);
         setShowInitialSearch(false);
         onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
-
-        // 立即更新对话状态,显示加载中的结果
+    
         setConversations(prevConversations => {
             const newResult = {
                 question: question,
@@ -59,83 +58,127 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 return updatedConversations;
             }
         });
-
+    
         try {
             // 1. 获取搜索结果
             console.log("开始获取搜索结果");
             const results = await window.tiktokDownloaderService.getSearchResults(question);
             console.log("获取搜索结果", results);
             setSearchResults(results);
-
-            // 2. 获取音频URL并转录
-            const transcriptions = await Promise.all(results.slice(0, 1).map(async (result) => {
+    
+            // 2. 同时获取音频URL并转录，但逐个获取评论
+            const transcriptionPromises = results.slice(0, 3).map(async (result) => {
                 const audioUrl = result.music_url;
-                console.log("单个音频转换", audioUrl);
+                console.log("处理视频转录audioUrl:", audioUrl);
+                
                 try {
-                    const transcription = await window.transcribeAudio(audioUrl);
-                    console.log("单个音频转换结果", transcription);
-                    return transcription || "该视频没有可转录的语音内容";
+                    const transcription = await window.openaiService.transcribeAudio(audioUrl);
+                    return {
+                        ...result,
+                        transcription: transcription || "该视频没有可转录的语音内容"
+                    };
                 } catch (error) {
-                    console.error("音频转换失败:", error);
-                    return "音频转换失败";
+                    console.error("处理视频转录失败:", error);
+                    return {
+                        ...result,
+                        transcription: "音频转换失败"
+                    };
                 }
-            }));
-            console.log("多个转换结果", transcriptions);
+            });
 
-            // 3. 将数据发送给AI进行分析
+            const transcribedResults = await Promise.all(transcriptionPromises);
+
+            // 3. 逐个获取评论
+            const processedVideoData = [];
+            for (const result of transcribedResults) {
+                console.log("获取视频评论", result.title);
+                try {
+                    const comments = await window.tiktokDownloaderService.getComments(result.share_url);
+                    processedVideoData.push({
+                        ...result,
+                        comments: comments.data || []
+                    });
+                } catch (error) {
+                    console.error("获取评论失败:", error);
+                    processedVideoData.push({
+                        ...result,
+                        comments: []
+                    });
+                }
+            }
+
+            console.log("处理后的视频数据:", processedVideoData);
+            setVideoData(processedVideoData);  // 更新视频数据状态
+    
+            // 4. 将数据发送给AI进行分析
+            const aiPrompt = processedVideoData.map((video, index) => `
+                视频 ${index + 1}:
+                标题: ${video.title}
+                作者: ${video.author}
+                转录文本: ${video.transcription}
+                评论:
+                ${video.comments.slice(0, 5).map(comment => `- ${comment.text}`).join('\n')}
+            `).join('\n\n');
+
+            console.log("视频和评论获取完成,发送给ai:", aiPrompt);
+    
             const response = await window.openaiService.chatCompletion({
                 model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
                 messages: [
-                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容,然后按以下格式回答用户的问题：
-
+                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容和评论,然后按以下格式回答用户的问题：
+    
                     回答：
-                    [在这里提供对用户问题的详细答案,包括对视频内容的分析和总结。如果某些视频没有语音内容，请说明这一点。]
-
+                    [在这里提供对用户问题的详细答案,包括对视频内容和评论的分析和总结。如果某些视频没有语音内容，请说明这一点。]
+    
                     证据：
                     1. [从视频内容中提取的支持答案的证据1]
                     2. [证据2]
                     3. [证据3]
-
+    
+                    相关评论：
+                    1. [相关评论1]
+                    2. [相关评论2]
+                    3. [相关评论3]
+    
                     相关问题：
-                    1. [根据视频内容生成的相关问题1]
+                    1. [根据视频内容和评论生成的相关问题1]
                     2. [相关问题2]
                     3. [相关问题3]
                     4. [相关问题4]
-
+    
                     请确保严格遵循这个格式。` },
-                    { role: "user", content: `问题: ${question}\n视频内容: ${transcriptions.join('\n')}` }
+                    { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
                 ],
                 max_tokens: 1000
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API请求失败: ${errorData.error}\n详情: ${JSON.stringify(errorData.details)}`);
-            }
-
-            const data = await response.json();
-            console.log("API响应数据:", data);
-            const answer = data.choices[0].message.content;
-
-            if (!answer || typeof answer !== 'string') {
-                throw new Error('API 返回的答案格式不正确');
-            }
-
-            console.log("开始解析API返回的答案");
-            const answerMatch = answer.match(/回答：([\s\S]*?)(?:\n\n|$)/);
+    
+            console.log("API响应数据:", response);
+            const answer = response.choices[0].message.content;
+    
+            console.log("开始解析API返回的答案", answer);
+            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n证据：|$)/);
             const mainAnswer = answerMatch && answerMatch[1] ? answerMatch[1].trim() : answer;
-
-            const evidenceMatch = answer.match(/证据：([\s\S]*?)(?:\n\n|$)/);
+    
+            const evidenceMatch = answer.match(/证据：([\s\S]*?)(?=\n\n相关评论：|$)/);
             const evidence = evidenceMatch && evidenceMatch[1] 
                 ? evidenceMatch[1].split('\n').filter(e => e.trim()).map(e => e.replace(/^\d+\.\s*/, ''))
                 : [];
-
-            const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)(?:\n\n|$)/);
+    
+            const relatedCommentsMatch = answer.match(/相关评论：([\s\S]*?)(?=\n\n相关问题：|$)/);
+            const relatedComments = relatedCommentsMatch && relatedCommentsMatch[1]
+                ? relatedCommentsMatch[1].split('\n').filter(c => c.trim()).map(c => c.replace(/^\d+\.\s*/, ''))
+                : [];
+    
+            const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)$/);
             const relatedQuestions = relatedQuestionsMatch && relatedQuestionsMatch[1]
                 ? relatedQuestionsMatch[1].split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s*/, ''))
                 : [];
-
+    
             console.log("解析完成，更新对话内容");
+            console.log("主要回答:", mainAnswer);
+            console.log("证据:", evidence);
+            console.log("相关评论:", relatedComments);
+            console.log("相关问题:", relatedQuestions);
 
             // 更新对话内容
             setConversations(prevConversations => {
@@ -144,26 +187,26 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 const updatedResult = {
                     question: question,
                     isLoading: false,
-                    searchedWebsites: results.map(result => result.download_url),
+                    searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
                         conclusion: mainAnswer,
                         evidence: evidence.map((e, index) => ({
                             text: e,
-                            source: results[index % results.length].title,
-                            url: results[index % results.length].download_url
+                            source: processedVideoData[index % processedVideoData.length].title,
+                            url: processedVideoData[index % processedVideoData.length].download_url
                         }))
                     },
                     relatedQuestions: relatedQuestions,
+                    relatedComments: relatedComments,
                     isVideoSearch: true,
-                    videoData: results
+                    videoData: processedVideoData
                 };
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
             });
-
+    
         } catch (error) {
             console.error('搜索过程中错误:', error);
-            // 更新对话状态,显示错误信息
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
@@ -329,7 +372,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 console.error('错误头信息:', error.response.headers);
                 errorMessage = error.response.data.error || errorMessage;
             } else if (error.request) {
-                console.error('未收到响应:', error.request);
+                console.error('未收到应答:', error.request);
                 errorMessage = '服务器未响应，请稍后再试。';
             } else {
                 console.error('错误信息:', error.message);

@@ -1,30 +1,51 @@
-const fs = require('fs').promisify;
+const axios = require('axios');
+const https = require('https');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const FormData = require('form-data');
+const fs = require('fs').promises;
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
-const FormData = require('form-data');
-const axios = require('axios');
 const puppeteer = require('puppeteer');
 const { promisify } = require('util');
 const stream = require('stream');
 const pipeline = promisify(stream.pipeline);
 const { OPEN_AI_KEY, SELF_API_KEY, BD_LLM_URL, BASE_URL } = require('../config');
 
+// 设置代理
+const proxyUrl = 'http://127.0.0.1:7897'; // 请确保这是正确的代理地址和端口
+const httpsAgent = new HttpsProxyAgent(proxyUrl);
+
+// 创建 axios 实例
+const createAxiosInstance = (url) => {
+  if (url.includes('api.openai.com')) {
+    return axios.create({
+      httpsAgent,
+      proxy: false
+    });
+  } else {
+    return axios.create();
+  }
+};
+
 const transcribeAudio = async (audioUrl) => {
+  const axiosInstance = createAxiosInstance(BD_LLM_URL);
   try {
+    // 模拟转录结果
+    console.log('模拟音频转录过程');
+    const mockTranscription = `为什么黑神话里等级上限不是一百级而是三百四十二级？因为孙悟空只活到了三百四十二岁。而伤害上限为什么是十万八千？因为对应的数据等于十万八千。五十四个惊魄加十个变身加八个法术，也刚刚好等于七十二变。而国外玩家都以为八戒只是只宠物，只有国人才懂他每字每句有多抽心。"你是哪里来的鱼人？哪里来的生人？你这嘴脸生的各样，上脑有些雷堆。这是别处来的妖魔，瞧你的长嘴模样，我看就不像是好人。""才分开几天，你就不认得人了？原来是八戒，哥哥。"还有在打抗金龙时的那个庙是不是似曾相识？因为跟猴哥在电视剧和动画里变得一模一样。有时我都觉得玩的不仅仅是一个游戏，更多的是我们童年的回忆。`;
+    
+    return mockTranscription;
     console.log('开始下载音频文件:', audioUrl);
-    // 下载音频文件
-    const audioResponse = await axios.get(audioUrl, { responseType: 'arraybuffer' });
-    const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+    const audioResponse = await axiosInstance.get(audioUrl, { responseType: 'arraybuffer' });
+    const audioBuffer = Buffer.from(audioResponse.data);
     console.log('音频文件下载完成，大小:', audioBuffer.length, '字节');
 
-    // 准备表单数据
     const formData = new FormData();
     formData.append('file', audioBuffer, { filename: 'audio.mp3', contentType: 'audio/mpeg' });
     formData.append('model', 'whisper-1');
 
     console.log('准备发送请求到 Whisper API');
-    // 调用 Whisper API
-    const whisperResponse = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+    const whisperResponse = await axiosInstance.post(`${BD_LLM_URL}/audio/transcriptions`, formData, {
       headers: {
         ...formData.getHeaders(),
         'Authorization': `Bearer ${OPEN_AI_KEY}`,
@@ -32,14 +53,16 @@ const transcribeAudio = async (audioUrl) => {
     });
 
     console.log('Whisper API 响应状态:', whisperResponse.status);
-    console.log('Whisper API 响应数据:', whisperResponse.data);
-
     return whisperResponse.data.text || "该音频没有可识别的语音内容";
   } catch (error) {
     console.error('音频转录出错:', error);
     if (error.response) {
       console.error('错误响应状态:', error.response.status);
       console.error('错误响应数据:', error.response.data);
+    } else if (error.request) {
+      console.error('未收到响应:', error.request);
+    } else {
+      console.error('错误信息:', error.message);
     }
     throw error;
   }
@@ -84,7 +107,7 @@ const convertAndTranscribe = async (file) => {
     formData.append('response_format', 'verbose_json');
 
     console.log('准备发送转录请求到OpenAI');
-    const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+    const response = await createAxiosInstance(BD_LLM_URL).post(`${BD_LLM_URL}/v1/audio/transcriptions`, formData, {
       headers: {
         ...formData.getHeaders(),
         'Authorization': `Bearer ${OPEN_AI_KEY}`,
@@ -173,11 +196,7 @@ const convertAndTranscribeUrl = async (url) => {
     outputPath = path.join(__dirname, '../../temp_output.mp3');
 
     console.log('开始下载视频...');
-    const videoResponse = await axios({
-      method: 'get',
-      url: videoSrc,
-      responseType: 'stream'
-    });
+    const videoResponse = await createAxiosInstance(videoSrc).get(videoSrc, { responseType: 'stream' });
 
     await pipeline(videoResponse.data, fs.createWriteStream(inputPath));
     console.log('视频下载完成');
@@ -208,7 +227,7 @@ const convertAndTranscribeUrl = async (url) => {
     formData.append('response_format', 'verbose_json');
 
     console.log('准备发送转录请求到OpenAI');
-    const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+    const response = await createAxiosInstance("https://api.openai.com").post(`https://api.openai.com/v1/audio/transcriptions`, formData, {
       headers: {
         ...formData.getHeaders(),
         'Authorization': `Bearer ${OPEN_AI_KEY}`,
@@ -256,11 +275,12 @@ const convertAndTranscribeUrl = async (url) => {
 };
 
 const processTranscription = async (transcription) => {
+  const axiosInstance = createAxiosInstance(BD_LLM_URL);
   console.log('开始处理转录文本');
   console.log(`转录文本长度: ${transcription.length}`);
 
   console.log('请求摘要...');
-  const summaryResponse = await axios.post(`${BD_LLM_URL}/chat/completions`, {
+  const summaryResponse = await axiosInstance.post(`${BD_LLM_URL}/chat/completions`, {
     model: "gpt-3.5-turbo",
     messages: [
       { role: "system", content: "你是一个视频内容总结助手。请简洁地总结以下内容。500个tokens以内" },
@@ -278,7 +298,7 @@ const processTranscription = async (transcription) => {
   console.log(`摘要长度: ${summary.length}`);
 
   console.log('请求预处理...');
-  const preprocessResponse = await axios.post(`${BD_LLM_URL}/chat/completions`, {
+  const preprocessResponse = await axiosInstance.post(`${BD_LLM_URL}/chat/completions`, {
     model: "gpt-3.5-turbo",
     messages: [
       { role: "system", content: "你是一个文本处理助手。请对以下文本进行处理：1、去除冗余的话（文章的举例千万不要去除，可以进行适当总结），2、保留原文的举例，3、保留因果关系的论证，4、保持好原文的推理逻辑，（因为、所以）5、去除人称视角 6、注意错别字和不通顺的句子（酌情修改）。同时，请标记出重要句子，用 <important> 标签包裹。" },

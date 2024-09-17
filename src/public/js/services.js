@@ -56,7 +56,6 @@ window.tiktokDownloaderService = {
                 throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
             }
             const data = await response.json();
-            console.log('前端收到的搜索结果:', data);
             return data
                 .filter(item => {
                     const durationInSeconds = parseDuration(item.duration);
@@ -92,6 +91,25 @@ window.tiktokDownloaderService = {
             console.error('音频转录出错:', error);
             throw error;
         }
+    },
+    getComments: async (url, pages = 1, source = false, cookie = '', token = '') => {
+        try {
+            const response = await fetch('/api/comments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url, pages, source, cookie, token }),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('获取评论时出错:', error);
+            throw error;
+        }
     }
 };
 
@@ -116,22 +134,6 @@ function parseDuration(duration) {
     }
 }
 
-// transcriptionService
-window.transcribeAudio = async (audioUrl) => {
-    const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ audioUrl }),
-    });
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.transcription;
-};
-
 // openaiService
 window.openaiService = {
     chatCompletion: async (params) => {
@@ -144,10 +146,28 @@ window.openaiService = {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
+            throw new Error(`API请求失败: ${errorData.error}\n详情: ${JSON.stringify(errorData.details)}`);
         }
-        const data = await response.json();
-        console.log('Received chat completion response:', data);
-        return data;
+        return await response.json();
+    },
+
+    transcribeAudio: async (audioUrl) => {
+        try {
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ audioUrl }),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.transcription || "无可用转录";
+        } catch (error) {
+            console.error('转录音频时出错:', error);
+            return "转录失败";
+        }
     }
 };

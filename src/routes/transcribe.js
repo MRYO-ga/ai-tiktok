@@ -52,7 +52,7 @@ router.post('/transcribe', async (req, res) => {
     const { audioUrl } = req.body;
     console.log('收到转录请求，音频 URL:', audioUrl);
     const transcription = await transcriptionService.transcribeAudio(audioUrl);
-    console.log('转录完成:', transcription);
+    console.log('转录完成');
     res.json({ transcription });
   } catch (error) {
     if (error.response) {

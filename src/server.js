@@ -1,10 +1,12 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { PORT } = require('./config');
+const { BD_LLM_URL } = require('./config');
 const tiktokRoutes = require('./routes/tiktok');
 const transcribeRoutes = require('./routes/transcribe'); // 添加这行
 const chatRoutes = require('./routes/chat'); // 添加这行
+const chatRouter = require('./routes/chat');
 
 const app = express();
 
@@ -19,6 +21,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api', tiktokRoutes);
 app.use('/api', transcribeRoutes); // 添加这行
 app.use('/api', chatRoutes); // 添加这行
+app.use('/api/chat', chatRouter);
 
 // 根路由处理
 app.get('/', (req, res) => {
@@ -30,16 +33,12 @@ app.use((req, res) => {
     res.status(404).send('404 - Not Found');
 });
 
-const startServer = () => {
-    try {
-        app.listen(PORT, () => {
-            console.log(`Server running at http://localhost:${PORT}`);
-        });
-    } catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
-    }
-};
+console.log(`Using BD_LLM_URL: ${BD_LLM_URL}`);
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+});
 
 // 处理未捕获的异常
 process.on('uncaughtException', (error) => {
@@ -52,5 +51,3 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
-
-startServer();

@@ -5,8 +5,6 @@ const HotTopics = ({ handleSearch }) => {
     const [hotTopics, setHotTopics] = useState([]);
     const [lastHotTopicsUpdate, setLastHotTopicsUpdate] = useState(null);
 
-    const BASE_URL = 'http://localhost:3001/api';
-
     useEffect(() => {
         fetchHotTopics();
     }, []);
@@ -23,7 +21,7 @@ const HotTopics = ({ handleSearch }) => {
     const generateHotTopics = async () => {
         try {
             console.log("正在生成热门话题");
-            const response = await axios.post(`${BASE_URL}/chat`, {
+            const response = await window.openaiService.chatCompletion({
                 model: "gpt-3.5-turbo",
                 messages: [
                     { role: "system", content: "你是一个AI助手，请生成5个当前热门的视频相关话题。" },
@@ -32,8 +30,8 @@ const HotTopics = ({ handleSearch }) => {
                 max_tokens: 150
             });
 
-            console.log("成功获取热门话题:", response.data);
-            const topics = response.data.choices[0].message.content.split('\n').filter(topic => topic.trim() !== '');
+            console.log("成功获取热门话题:", response);
+            const topics = response.choices[0].message.content.split('\n').filter(topic => topic.trim() !== '');
             console.log("处理后的热门话题:", topics);
             setHotTopics(topics);
         } catch (error) {

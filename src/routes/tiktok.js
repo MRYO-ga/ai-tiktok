@@ -45,4 +45,18 @@ router.post('/analyze-audio', async (req, res) => {
     }
 });
 
+router.post('/comments', async (req, res) => {
+    try {
+        const { url, pages, source, cookie, token } = req.body;
+        if (!url) {
+            return res.status(400).json({ error: '缺少 url 参数' });
+        }
+        const comments = await tiktokDownloaderService.getWorkComments(url, pages, source, cookie, token);
+        res.json(comments);
+    } catch (error) {
+        console.error('获取评论出错:', error);
+        res.status(500).json({ error: '获取评论时发生错误', message: error.message });
+    }
+});
+
 module.exports = router;
