@@ -12,7 +12,7 @@ const pipeline = promisify(stream.pipeline);
 const { OPEN_AI_KEY, SELF_API_KEY, BD_LLM_URL, BASE_URL } = require('../config');
 
 // 设置代理
-const proxyUrl = 'http://127.0.0.1:7897'; // 请确保这是正确的代理地址和端口
+const proxyUrl = 'http://127.0.0.1:7890'; // 请确保这是正确的代理地址和端口
 const httpsAgent = new HttpsProxyAgent(proxyUrl);
 
 // 创建 axios 实例
@@ -30,18 +30,21 @@ const createAxiosInstance = (url) => {
 const transcribeAudio = async (audioUrl) => {
   const axiosInstance = createAxiosInstance(BD_LLM_URL);
   try {
-    // 模拟转录结果
-    console.log('模拟音频转录过程');
-    const mockTranscription = `为什么黑神话里等级上限不是一百级而是三百四十二级？因为孙悟空只活到了三百四十二岁。而伤害上限为什么是十万八千？因为对应的数据等于十万八千。五十四个惊魄加十个变身加八个法术，也刚刚好等于七十二变。而国外玩家都以为八戒只是只宠物，只有国人才懂他每字每句有多抽心。"你是哪里来的鱼人？哪里来的生人？你这嘴脸生的各样，上脑有些雷堆。这是别处来的妖魔，瞧你的长嘴模样，我看就不像是好人。""才分开几天，你就不认得人了？原来是八戒，哥哥。"还有在打抗金龙时的那个庙是不是似曾相识？因为跟猴哥在电视剧和动画里变得一模一样。有时我都觉得玩的不仅仅是一个游戏，更多的是我们童年的回忆。`;
-    
-    return mockTranscription;
-    console.log('开始下载音频文件:', audioUrl);
-    const audioResponse = await axiosInstance.get(audioUrl, { responseType: 'arraybuffer' });
+    console.log('开始下载音频文件');
+    const audioResponse = await axiosInstance.get(audioUrl, { 
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1'
+      }
+    });
     const audioBuffer = Buffer.from(audioResponse.data);
     console.log('音频文件下载完成，大小:', audioBuffer.length, '字节');
 
     const formData = new FormData();
-    formData.append('file', audioBuffer, { filename: 'audio.mp3', contentType: 'audio/mpeg' });
+    formData.append('file', audioBuffer, { 
+      filename: 'audio',
+      contentType: audioResponse.headers['content-type'] || 'audio/mpeg'
+    });
     formData.append('model', 'whisper-1');
 
     console.log('准备发送请求到 Whisper API');

@@ -4,7 +4,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { OPEN_AI_KEY, BD_LLM_URL } = require('../config');
 
 // 设置代理
-const proxyUrl = 'http://127.0.0.1:7897'; // 请确保这是正确的代理地址和端口
+const proxyUrl = 'http://127.0.0.1:7890'; // 请确保这是正确的代理地址和端口
 const httpsAgent = new HttpsProxyAgent(proxyUrl);
 
 // 创建 axios 实例

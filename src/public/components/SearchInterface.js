@@ -91,7 +91,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             // 3. 逐个获取评论
             const processedVideoData = [];
             for (const result of transcribedResults) {
-                console.log("获取视频评论", result.title);
                 try {
                     const comments = await window.tiktokDownloaderService.getComments(result.share_url);
                     processedVideoData.push({
@@ -113,11 +112,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             // 4. 将数据发送给AI进行分析
             const aiPrompt = processedVideoData.map((video, index) => `
                 视频 ${index + 1}:
-                标题: ${video.title}
-                作者: ${video.author}
+                标题: ${video.desc}
+                作者: ${video.nickname}
                 转录文本: ${video.transcription}
-                评论:
-                ${video.comments.slice(0, 5).map(comment => `- ${comment.text}`).join('\n')}
             `).join('\n\n');
 
             console.log("视频和评论获取完成,发送给ai:", aiPrompt);
@@ -125,59 +122,70 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             const response = await window.openaiService.chatCompletion({
                 model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
                 messages: [
-                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容和评论,然后按以下格式回答用户的问题：
+                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容，然后按以下格式回答用户的问题：
     
                     回答：
-                    [在这里提供对用户问题的详细答案,包括对视频内容和评论的分析和总结。如果某些视频没有语音内容，请说明这一点。]
+                    [根据回答依据回答问题，提供核心观点。请确保这个回答简洁明了，直接回应用户的问题。]
     
-                    证据：
-                    1. [从视频内容中提取的支持答案的证据1]
-                    2. [证据2]
-                    3. [证据3]
+                    回答依据：
+                    1. 博主1观点分析（<引用自视频1>）：
+                       [对博主1的主要观点进行分析，不要直接照搬，而是解释其含义和影响]
+                       支持该观点的理由：
+                       - [分析支持该观点的理由1]
+                       - [分析支持该观点的理由2]
+                       - [分析支持该观点的理由3]
+                       质疑该观点的理由：
+                       - [分析质疑该观点的理由1]
+                       - [分析质疑该观点的理由2]
+                       - [分析质疑该观点的理由3]
+                       中立分析：[如果有的话，对该观点进行客观的中立分析]
     
-                    相关评论：
-                    1. [相关评论1]
-                    2. [相关评论2]
-                    3. [相关评论3]
+                    2. 博主2观点分析（<引用自视频2>）：
+                       [与博主1相同的结构，但内容针对博主2的观点]
+    
+                    3. 博主3观点分析（<引用自视频3>）：
+                       [与博主1相同的结构，但内容针对博主3的观点]
     
                     相关问题：
-                    1. [根据视频内容和评论生成的相关问题1]
+                    1. [根据视频内容生成的相关问题1]
                     2. [相关问题2]
                     3. [相关问题3]
                     4. [相关问题4]
     
-                    请确保严格遵循这个格式。` },
+                    请确保严格遵循这个格式。如果某些部分没有相关信息，请标注为"无相关信息"。在分析时，请注意以下几点：
+                    1. 保持客观性，不要偏袒任何一方观点。
+                    2. 在分析观点时，要深入解释其含义、可能的影响和潜在的问题。
+                    3. 在总结时，要考虑到所有博主的观点，并进行综合分析。
+                    4. 生成的相关问题应该能够引导用户进行更深入的探讨或思考。
+                    5. 不要直接引用评论，而是将评论的观点整合到对博主观点的分析中。` },
                     { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
                 ],
-                max_tokens: 1000
+                max_tokens: 2500
             });
     
             console.log("API响应数据:", response);
             const answer = response.choices[0].message.content;
     
             console.log("开始解析API返回的答案", answer);
-            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n证据：|$)/);
-            const mainAnswer = answerMatch && answerMatch[1] ? answerMatch[1].trim() : answer;
+            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n回答依据：|$)/);
+            const mainAnswer = answerMatch ? answerMatch[1].trim() : answer;
     
-            const evidenceMatch = answer.match(/证据：([\s\S]*?)(?=\n\n相关评论：|$)/);
-            const evidence = evidenceMatch && evidenceMatch[1] 
-                ? evidenceMatch[1].split('\n').filter(e => e.trim()).map(e => e.replace(/^\d+\.\s*/, ''))
-                : [];
-    
-            const relatedCommentsMatch = answer.match(/相关评论：([\s\S]*?)(?=\n\n相关问题：|$)/);
-            const relatedComments = relatedCommentsMatch && relatedCommentsMatch[1]
-                ? relatedCommentsMatch[1].split('\n').filter(c => c.trim()).map(c => c.replace(/^\d+\.\s*/, ''))
-                : [];
+            const evidenceMatch = answer.match(/回答依据：([\s\S]*?)(?=\n\n相关问题：|$)/);
+            const evidenceText = evidenceMatch ? evidenceMatch[1].trim() : '';
+
+            // 将 evidence 转换为数组格式
+            const evidence = evidenceText.split(/\d+\.\s*博主\d+观点分析/).filter(item => item.trim()).map((item, index) => ({
+                text: item.trim(),
+                source: `博主${index + 1}观点分析`,
+                url: '#'
+            }));
     
             const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)$/);
-            const relatedQuestions = relatedQuestionsMatch && relatedQuestionsMatch[1]
-                ? relatedQuestionsMatch[1].split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s*/, ''))
-                : [];
+            const relatedQuestions = relatedQuestionsMatch ? relatedQuestionsMatch[1].split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s*/, '')) : [];
     
             console.log("解析完成，更新对话内容");
             console.log("主要回答:", mainAnswer);
             console.log("证据:", evidence);
-            console.log("相关评论:", relatedComments);
             console.log("相关问题:", relatedQuestions);
 
             // 更新对话内容
@@ -190,14 +198,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
                         conclusion: mainAnswer,
-                        evidence: evidence.map((e, index) => ({
-                            text: e,
-                            source: processedVideoData[index % processedVideoData.length].title,
-                            url: processedVideoData[index % processedVideoData.length].download_url
-                        }))
+                        evidence: evidence
                     },
                     relatedQuestions: relatedQuestions,
-                    relatedComments: relatedComments,
                     isVideoSearch: true,
                     videoData: processedVideoData
                 };
