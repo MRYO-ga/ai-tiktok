@@ -36,7 +36,7 @@ AI TikTok 视频分析系统是一个基于人工智能的视频内容分析工�
 3. 创建并配置 `.env` 文件:
    ```
    OPEN_AI_KEY=your_openai_api_key
-   SELF_API_KEY=your_self_api_key
+   BD_API_KEY=your_self_api_key
    BASE_URL=your_base_url
    ```
 

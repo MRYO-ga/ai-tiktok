@@ -50,6 +50,16 @@ router.post('/process-transcription', async (req, res, next) => {
 router.post('/transcribe', async (req, res) => {
   try {
     const { audioUrl } = req.body;
+    // 判断 audioUrl 是否为空或格式不正确
+    if (!audioUrl || typeof audioUrl !== 'string' || !audioUrl.trim()) {
+      throw new Error('音频 URL 不能为空且必须是有效的字符串');
+    }
+  
+    // 简单的 URL 格式验证
+    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    if (!urlPattern.test(audioUrl)) {
+      throw new Error('无效的音频 URL 格式');
+    }
     console.log('收到转录请求，音频 URL:', audioUrl);
     const transcription = await transcriptionService.transcribeAudio(audioUrl);
     console.log('转录完成');

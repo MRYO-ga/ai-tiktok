@@ -56,16 +56,11 @@ window.tiktokDownloaderService = {
                 throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
             }
             const data = await response.json();
-            return data
-                .filter(item => {
-                    const durationInSeconds = parseDuration(item.duration);
-                    return durationInSeconds <= 120; // 再次过滤，以确保
-                })
-                .map(item => ({
-                    ...item,
-                    duration: formatDuration(item.duration),
-                    create_time: formatDate(item.create_time)
-                }));
+            return data.map(item => ({
+                ...item,
+                duration: formatDuration(item.duration),
+                create_time: formatDate(item.create_time)
+            }));
         } catch (error) {
             console.error('获取搜索结果时出错:', error);
             throw error;

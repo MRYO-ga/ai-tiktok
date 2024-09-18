@@ -133,3 +133,39 @@ body {
 .animate-slide-up {
     animation: slide-up 0.5s ease-out;
 }
+
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+}
+
+.prose p {
+    margin-bottom: 1em;
+}
+
+.prose ul, .prose ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+
+.prose code {
+    background-color: #f0f0f0;
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+}
+
+.prose pre {
+    background-color: #f0f0f0;
+    padding: 1em;
+    border-radius: 0.3em;
+    overflow-x: auto;
+}
+
+.prose li {
+    margin-bottom: 0.5em;
+}
+
+.prose strong {
+    font-weight: bold;
+}

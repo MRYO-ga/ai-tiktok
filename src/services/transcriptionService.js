@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const { promisify } = require('util');
 const stream = require('stream');
 const pipeline = promisify(stream.pipeline);
-const { OPEN_AI_KEY, SELF_API_KEY, BD_LLM_URL, BASE_URL } = require('../config');
+const { OPEN_AI_KEY, BD_API_KEY, LLM_BASE_URL, BASE_URL } = require('../config');
 
 // 设置代理
 const proxyUrl = 'http://127.0.0.1:7890'; // 请确保这是正确的代理地址和端口
@@ -28,7 +28,7 @@ const createAxiosInstance = (url) => {
 };
 
 const transcribeAudio = async (audioUrl) => {
-  const axiosInstance = createAxiosInstance(BD_LLM_URL);
+  const axiosInstance = createAxiosInstance(LLM_BASE_URL);
   try {
     console.log('开始下载音频文件');
     const audioResponse = await axiosInstance.get(audioUrl, { 
@@ -47,8 +47,9 @@ const transcribeAudio = async (audioUrl) => {
     });
     formData.append('model', 'whisper-1');
 
+    
     console.log('准备发送请求到 Whisper API');
-    const whisperResponse = await axiosInstance.post(`${BD_LLM_URL}/audio/transcriptions`, formData, {
+    const whisperResponse = await axiosInstance.post(`https://api.openai.com/v1/audio/transcriptions`, formData, {
       headers: {
         ...formData.getHeaders(),
         'Authorization': `Bearer ${OPEN_AI_KEY}`,
@@ -110,7 +111,7 @@ const convertAndTranscribe = async (file) => {
     formData.append('response_format', 'verbose_json');
 
     console.log('准备发送转录请求到OpenAI');
-    const response = await createAxiosInstance(BD_LLM_URL).post(`${BD_LLM_URL}/v1/audio/transcriptions`, formData, {
+    const response = await createAxiosInstance(LLM_BASE_URL).post(`${LLM_BASE_URL}/v1/audio/transcriptions`, formData, {
       headers: {
         ...formData.getHeaders(),
         'Authorization': `Bearer ${OPEN_AI_KEY}`,
@@ -278,12 +279,12 @@ const convertAndTranscribeUrl = async (url) => {
 };
 
 const processTranscription = async (transcription) => {
-  const axiosInstance = createAxiosInstance(BD_LLM_URL);
+  const axiosInstance = createAxiosInstance(LLM_BASE_URL);
   console.log('开始处理转录文本');
   console.log(`转录文本长度: ${transcription.length}`);
 
   console.log('请求摘要...');
-  const summaryResponse = await axiosInstance.post(`${BD_LLM_URL}/chat/completions`, {
+  const summaryResponse = await axiosInstance.post(`${LLM_BASE_URL}/chat/completions`, {
     model: "gpt-3.5-turbo",
     messages: [
       { role: "system", content: "你是一个视频内容总结助手。请简洁地总结以下内容。500个tokens以内" },
@@ -292,7 +293,7 @@ const processTranscription = async (transcription) => {
     max_tokens: 500
   }, {
     headers: {
-      'Authorization': `Bearer ${SELF_API_KEY}`,
+      'Authorization': `Bearer ${BD_API_KEY}`,
       'Content-Type': 'application/json'
     }
   });
@@ -301,7 +302,7 @@ const processTranscription = async (transcription) => {
   console.log(`摘要长度: ${summary.length}`);
 
   console.log('请求预处理...');
-  const preprocessResponse = await axiosInstance.post(`${BD_LLM_URL}/chat/completions`, {
+  const preprocessResponse = await axiosInstance.post(`${LLM_BASE_URL}/chat/completions`, {
     model: "gpt-3.5-turbo",
     messages: [
       { role: "system", content: "你是一个文本处理助手。请对以下文本进行处理：1、去除冗余的话（文章的举例千万不要去除，可以进行适当总结），2、保留原文的举例，3、保留因果关系的论证，4、保持好原文的推理逻辑，（因为、所以）5、去除人称视角 6、注意错别字和不通顺的句子（酌情修改）。同时，请标记出重要句子，用 <important> 标签包裹。" },
@@ -310,7 +311,7 @@ const processTranscription = async (transcription) => {
     max_tokens: 2000
   }, {
     headers: {
-      'Authorization': `Bearer ${SELF_API_KEY}`,
+      'Authorization': `Bearer ${BD_API_KEY}`,
       'Content-Type': 'application/json'
     }
   });

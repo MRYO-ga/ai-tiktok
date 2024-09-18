@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { BD_LLM_URL } = require('./config');
+const { LLM_BASE_URL } = require('./config');
 const tiktokRoutes = require('./routes/tiktok');
 const transcribeRoutes = require('./routes/transcribe'); // 添加这行
 const chatRoutes = require('./routes/chat'); // 添加这行
@@ -33,7 +33,7 @@ app.use((req, res) => {
     res.status(404).send('404 - Not Found');
 });
 
-console.log(`Using BD_LLM_URL: ${BD_LLM_URL}`);
+console.log(`Using LLM_BASE_URL: ${LLM_BASE_URL}`);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

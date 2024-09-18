@@ -1,7 +1,7 @@
 const axios = require('axios');
 const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { OPEN_AI_KEY, BD_LLM_URL } = require('../config');
+const { OPEN_AI_KEY, BD_API_KEY, LLM_BASE_URL } = require('../config');
 
 // 设置代理
 const proxyUrl = 'http://127.0.0.1:7890'; // 请确保这是正确的代理地址和端口
@@ -19,21 +19,22 @@ const createAxiosInstance = (url) => {
   }
 };
 
-const axiosInstance = createAxiosInstance(BD_LLM_URL);
+const axiosInstance = createAxiosInstance(LLM_BASE_URL);
 
 const chatCompletion = async (params) => {
   try {
-    // console.log(`Sending request to: ${BD_LLM_URL}/chat/completions`);
-    // console.log('Request params:', JSON.stringify(params, null, 2));
+    // console.log(`Sending request to: ${LLM_BASE_URL}/chat/completions`);
     
-    const response = await axiosInstance.post(`${BD_LLM_URL}/chat/completions`, params, {
+    const apiKey = LLM_BASE_URL.includes('openai.com') ? OPEN_AI_KEY : BD_API_KEY;
+    
+    const response = await axiosInstance.post(`${LLM_BASE_URL}/chat/completions`, params, {
       headers: {
-        'Authorization': `Bearer ${OPEN_AI_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       }
     });
     
-    // console.log('Response status:', response.status);
+    console.log('Response status:', response.status);
     // console.log('Response data:', JSON.stringify(response.data, null, 2));
     
     return response.data;

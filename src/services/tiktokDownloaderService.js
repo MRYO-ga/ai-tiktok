@@ -72,7 +72,11 @@ const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '1
             sort_type,
             publish_time
         });
-        
+        // 检查响应数据是否存在且包含data属性
+        if (!response.data || !response.data.data) {
+            console.error('搜索结果数据格式不正确');
+            return [];
+        }
         let results = response.data.data;
         
         // 根据不同的排序类型进行排序
@@ -101,7 +105,7 @@ const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '1
                 .filter(item => {
                     // 过滤掉时长为0或大于6分钟的视频
                     const durationInSeconds = parseDuration(item.duration);
-                    return durationInSeconds > 0 && durationInSeconds <= 360; 
+                    return durationInSeconds > 60 && durationInSeconds <= 360; 
                 })
                 .map(item => ({
                     type: item.type || '',

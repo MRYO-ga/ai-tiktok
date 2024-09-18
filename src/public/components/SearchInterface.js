@@ -4,9 +4,9 @@
 // 使用全局变量
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
     const [input, setInput] = React.useState('');
-    const [selectedModel, setSelectedModel] = React.useState('GPT-3.5');
+    const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
-    const models = ['gpt-3.5-turbo', 'gpt-4'];
+    const models = ['gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo'];
     const resultsContainerRef = React.useRef(null);
     const [conversations, setConversations] = React.useState([]);
     const [displaySteps, setDisplaySteps] = React.useState({});
@@ -72,21 +72,58 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 console.log("处理视频转录audioUrl:", audioUrl);
                 
                 try {
+                    // 等待转录完成
                     const transcription = await window.openaiService.transcribeAudio(audioUrl);
+                    console.log("转录完成:", transcription);
+
+                    // 转录完成后进行预处理
+                    const preprocessedTranscription = await window.openaiService.chatCompletion({
+                        model: selectedModel,
+                        messages: [
+                            { role: "system", content: `
+                                你是一个文本处理助手。我给你提供视频标题和转录文本，
+                                你先判断转录文本是否与视频标题相关，如果相关，则请对文本进行提取处理，否则输出<不相关>。
+                                
+                                处理要求：
+                                1、去除冗余的话（文章的举例千万不要去除，可以进行适当总结）
+                                2、保留原文的举例
+                                3、保留因果关系的论证
+                                4、保持好原文的推理逻辑，（因为、所以）
+                                5、去除人称视角
+                                6、注意错别字和不通顺的句子（酌情修改）
+                                7、划分句子和段落，不要一长段文字，可以划分成多个点` },
+                            { role: "user", content: `视频标题：${result.desc}\n转录文本：${transcription}` }
+                        ],
+                        // max_tokens: 1000
+                    });
+
+                    console.log("预处理完成:", preprocessedTranscription.choices[0].message.content);
+
+                    if (preprocessedTranscription.choices[0].message.content === '<不相关>') {
+                        return {
+                            ...result,
+                            transcription: transcription,
+                            preprocessedTranscription: '<不相关>'
+                        };
+                    }
+
                     return {
                         ...result,
-                        transcription: transcription || "该视频没有可转录的语音内容"
+                        transcription: transcription,
+                        preprocessedTranscription: preprocessedTranscription.choices[0].message.content
                     };
                 } catch (error) {
                     console.error("处理视频转录失败:", error);
                     return {
                         ...result,
-                        transcription: "音频转换失败"
+                        transcription: "音频转换失败",
+                        preprocessedTranscription: "预处理失败"
                     };
                 }
             });
 
             const transcribedResults = await Promise.all(transcriptionPromises);
+            console.log("所有视频转录和预处理完成:", transcribedResults);
 
             // 3. 逐个获取评论
             const processedVideoData = [];
@@ -106,86 +143,85 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 }
             }
 
-            console.log("处理后的视频数据:", processedVideoData);
-            setVideoData(processedVideoData);  // 更新视频数据状态
-    
+            console.log("处理后的视频数据:", processedVideoData);  // 更新视频数据状态
             // 4. 将数据发送给AI进行分析
-            const aiPrompt = processedVideoData.map((video, index) => `
-                视频 ${index + 1}:
-                标题: ${video.desc}
-                作者: ${video.nickname}
-                转录文本: ${video.transcription}
-            `).join('\n\n');
+            const aiPrompt = processedVideoData.map((video, index) => {
+                if (video.preprocessedTranscription === '<不相关>') {
+                    return `
+                        视频 ${index + 1}:
+                        标题: ${video.desc}
+                        作者: ${video.nickname}
+                        评论: ${video.comments.map(comment => comment.text).join('\n')}
+                    `;
+                } else {
+                    return `
+                        视频 ${index + 1}:
+                        标题: ${video.desc}
+                        作者: ${video.nickname}
+                        预处理后的转录文本: ${video.preprocessedTranscription}
+                        评论: ${video.comments.map(comment => comment.text).join('\n')}
+                    `;
+                }
+            }).join('\n\n');
 
             console.log("视频和评论获取完成,发送给ai:", aiPrompt);
     
+            // 直接使用硬编码的系统提示
+            const systemPrompt = `
+                作为专业的文本处理助手，我会给你提供文章和评论，你需要把这些文章和评论整合起来回答用户问题。
+                请遵循以下指南：
+                1. 关注不同博主间的观点差异，提供全面分析。
+                2. 考虑视频发布时间，分析内容时效性和相关背景。
+                3. 保持客观性，不偏袒任何观点。
+                4. 生成的相关问题应引导用户深入探讨或思考。
+                5. 如果文本完全不相关，可以忽略，根据你自己的想法回答。
+
+                请按以下格式提供分析：
+
+                回答：
+                [简洁回答用户问题，提供核心观点。]
+
+                综合分析：
+                [整合文章内容和评论，回答用户问题。]
+
+                相关问题：
+                1. [深入相关问题1，20-30字]
+                2. [相关问题2，20-30字]
+                3. [相关问题3，20-30字]
+                4. [相关问题4，20-30字]
+
+                严格遵循此格式。如无相关信息，可忽略相应部分。
+            `;
+
             const response = await window.openaiService.chatCompletion({
-                model: selectedModel === 'GPT-4' ? "gpt-4" : "gpt-3.5-turbo",
+                model: selectedModel,
                 messages: [
-                    { role: "system", content: `你是一个AI视频搜索助手。请分析以下视频内容，然后按以下格式回答用户的问题：
-    
-                    回答：
-                    [根据回答依据回答问题，提供核心观点。请确保这个回答简洁明了，直接回应用户的问题。]
-    
-                    回答依据：
-                    1. 博主1观点分析（<引用自视频1>）：
-                       [对博主1的主要观点进行分析，不要直接照搬，而是解释其含义和影响]
-                       支持该观点的理由：
-                       - [分析支持该观点的理由1]
-                       - [分析支持该观点的理由2]
-                       - [分析支持该观点的理由3]
-                       质疑该观点的理由：
-                       - [分析质疑该观点的理由1]
-                       - [分析质疑该观点的理由2]
-                       - [分析质疑该观点的理由3]
-                       中立分析：[如果有的话，对该观点进行客观的中立分析]
-    
-                    2. 博主2观点分析（<引用自视频2>）：
-                       [与博主1相同的结构，但内容针对博主2的观点]
-    
-                    3. 博主3观点分析（<引用自视频3>）：
-                       [与博主1相同的结构，但内容针对博主3的观点]
-    
-                    相关问题：
-                    1. [根据视频内容生成的相关问题1]
-                    2. [相关问题2]
-                    3. [相关问题3]
-                    4. [相关问题4]
-    
-                    请确保严格遵循这个格式。如果某些部分没有相关信息，请标注为"无相关信息"。在分析时，请注意以下几点：
-                    1. 保持客观性，不要偏袒任何一方观点。
-                    2. 在分析观点时，要深入解释其含义、可能的影响和潜在的问题。
-                    3. 在总结时，要考虑到所有博主的观点，并进行综合分析。
-                    4. 生成的相关问题应该能够引导用户进行更深入的探讨或思考。
-                    5. 不要直接引用评论，而是将评论的观点整合到对博主观点的分析中。` },
+                    { role: "system", content: systemPrompt },
                     { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
                 ],
-                max_tokens: 2500
+                // max_tokens: 5000
             });
     
             console.log("API响应数据:", response);
             const answer = response.choices[0].message.content;
     
             console.log("开始解析API返回的答案", answer);
-            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n回答依据：|$)/);
-            const mainAnswer = answerMatch ? answerMatch[1].trim() : answer;
-    
-            const evidenceMatch = answer.match(/回答依据：([\s\S]*?)(?=\n\n相关问题：|$)/);
-            const evidenceText = evidenceMatch ? evidenceMatch[1].trim() : '';
+            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n综合分析：|$)/);
+            const mainAnswer = answerMatch ? answerMatch[1].trim() : '';
 
-            // 将 evidence 转换为数组格式
-            const evidence = evidenceText.split(/\d+\.\s*博主\d+观点分析/).filter(item => item.trim()).map((item, index) => ({
-                text: item.trim(),
-                source: `博主${index + 1}观点分析`,
-                url: '#'
-            }));
-    
+            const analysisMatch = answer.match(/综合分析：([\s\S]*?)(?=\n\n相关问题：|$)/);
+            const analysis = analysisMatch ? analysisMatch[1].trim() : '';
+
             const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)$/);
-            const relatedQuestions = relatedQuestionsMatch ? relatedQuestionsMatch[1].split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s*/, '')) : [];
-    
+            const relatedQuestions = relatedQuestionsMatch 
+                ? relatedQuestionsMatch[1].split('\n')
+                    .filter(q => q.trim())
+                    .map(q => q.replace(/^\d+\.\s*/, '').trim())
+                : [];
+
             console.log("解析完成，更新对话内容");
             console.log("主要回答:", mainAnswer);
-            console.log("证据:", evidence);
+            console.log("综合分析:", analysis);
             console.log("相关问题:", relatedQuestions);
 
             // 更新对话内容
@@ -198,7 +234,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
                         conclusion: mainAnswer,
-                        evidence: evidence
+                        analysis: analysis,
+                        evidence: [{ text: analysis, source: '综合分析', url: '#' }]
                     },
                     relatedQuestions: relatedQuestions,
                     isVideoSearch: true,
@@ -219,6 +256,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     searchedWebsites: [],
                     summary: { 
                         conclusion: '抱歉,搜索过程中出现错误。',
+                        analysis: '',  // 添加空的 analysis 字段
                         evidence: [{ text: error.message, source: '错误信息', url: '#' }]
                     },
                     relatedQuestions: [],
@@ -404,7 +442,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
     const renderEvidenceDetails = (evidence, index) => (
         <div key={index} className="bg-gray-50 rounded-lg p-4 mb-4">
-            <p className="text-gray-700 mb-2">{evidence.text}</p>
+            <div className="text-gray-700 mb-2 whitespace-pre-wrap">{evidence.text}</div>
             <p className="text-sm text-gray-500">
                 来源: <a href={evidence.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{evidence.source}</a>
             </p>
