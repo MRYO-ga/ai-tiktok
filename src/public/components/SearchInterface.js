@@ -146,35 +146,44 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("处理后的视频数据:", processedVideoData);  // 更新视频数据状态
             // 4. 将数据发送给AI进行分析
             const aiPrompt = processedVideoData.map((video, index) => {
-                if (video.preprocessedTranscription === '<不相关>') {
-                    return `
+                const baseInfo = `
                         视频 ${index + 1}:
                         标题: ${video.desc}
                         作者: ${video.nickname}
-                        评论: ${video.comments.map(comment => comment.text).join('\n')}
-                    `;
-                } else {
-                    return `
-                        视频 ${index + 1}:
-                        标题: ${video.desc}
-                        作者: ${video.nickname}
+                        点赞数: ${video.digg_count}
+                        评论数: ${video.comment_count}
+                        收藏数: ${video.collect_count}
+                        分享数: ${video.share_count}
+                        `;
+
+                                        const transcription = video.preprocessedTranscription === '<不相关>' ? '' : `
                         预处理后的转录文本: ${video.preprocessedTranscription}
-                        评论: ${video.comments.map(comment => comment.text).join('\n')}
-                    `;
-                }
+                        `;
+
+                                        const comments = video.comments.map((comment, commentIndex) => `
+                        视频 ${index + 1} 的第 ${commentIndex + 1} 条评论:
+                        - ${comment.text}
+                        点赞数: ${comment.digg_count}
+                        回复数: ${comment.reply_comment_total}
+                        `).join('\n');
+
+                return `${baseInfo}${transcription}${comments}`;
             }).join('\n\n');
 
             console.log("视频和评论获取完成,发送给ai:", aiPrompt);
-    
-            // 直接使用硬编码的系统提示
+        
             const systemPrompt = `
-                作为专业的文本处理助手，我会给你提供文章和评论，你需要把这些文章和评论整合起来回答用户问题。
+                作为专业的文本处理助手，我会给你提供文章和评论，对文章和评论做处理：
+
                 请遵循以下指南：
-                1. 关注不同博主间的观点差异，提供全面分析。
-                2. 考虑视频发布时间，分析内容时效性和相关背景。
-                3. 保持客观性，不偏袒任何观点。
-                4. 生成的相关问题应引导用户深入探讨或思考。
-                5. 如果文本完全不相关，可以忽略，根据你自己的想法回答。
+                1. 按主题或关键信息进行分类和提炼。每一个部分会囊括视频中的重点，而不要遗漏任何重要的细节，文章每一个观点都很重要，不要删减，
+                2. 如果文章某一个观点和评论相关性较高，在列出相关观点时，要列出相应评论的点赞数，评估该观点的认同人数。
+                3. 考虑视频发布时间，分析内容时效性和相关背景。
+                5. 生成的相关问题应引导用户深入探讨或思考。
+                6. 如果文本和问题、视频标题完全不相关，可以忽略，根据你自己的想法回答。
+                7. 分析视频的点赞数、评论数、收藏数和分享数，评估视频的受欢迎程度和影响力。
+                8. 考虑评论的点赞数和回复数，识别热门评论和讨论焦点。
+                9. 如果视频评论中有人提到视频中没有提到的内容并且这个内容很有价值，请在综合分析中指出。
 
                 请按以下格式提供分析：
 
@@ -182,7 +191,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 [简洁回答用户问题，提供核心观点。]
 
                 综合分析：
-                [整合文章内容和评论，回答用户问题。]
+                [整合文章内容、评论和互动数据，回答用户问题。包括对相应观点受欢迎程度和评论热度的分析。]
 
                 相关问题：
                 1. [深入相关问题1，20-30字]
@@ -194,7 +203,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             `;
 
             const response = await window.openaiService.chatCompletion({
-                model: selectedModel,
+                model: "gpt-3.5-turbo-0125",
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
