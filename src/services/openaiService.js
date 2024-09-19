@@ -1,7 +1,7 @@
 const axios = require('axios');
 const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { OPEN_AI_KEY, BD_API_KEY, LLM_BASE_URL } = require('../config');
+const { OPEN_AI_KEY, BD_API_KEY, LLM_BASE_URL, USE_HTTPS_AGENT } = require('../config');
 
 // 设置代理
 const proxyUrl = 'http://127.0.0.1:7890'; // 请确保这是正确的代理地址和端口
@@ -9,7 +9,7 @@ const httpsAgent = new HttpsProxyAgent(proxyUrl);
 
 // 创建 axios 实例
 const createAxiosInstance = (url) => {
-  if (url.includes('api.openai.com')) {
+  if (url.includes('api.openai.com') && USE_HTTPS_AGENT) {
     return axios.create({
       httpsAgent,
       proxy: false
@@ -45,7 +45,7 @@ const chatCompletion = async (params) => {
       console.error('Error status:', error.response.status);
       console.error('Error headers:', error.response.headers);
     } else if (error.request) {
-      console.error('Error request:', error.request);
+      // console.error('Error request:', error.request);
     } else {
       console.error('Error message:', error.message);
     }

@@ -57,9 +57,5 @@ const App = () => {
     );
 };
 
-const rootElement = document.getElementById('root');
-if (rootElement) {
-    ReactDOM.createRoot(rootElement).render(React.createElement(App));
-} else {
-    console.error('Root element not found');
-}
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));

@@ -1,3 +1,6 @@
+const React = window.React;
+const MarkdownRenderer = window.MarkdownRenderer;
+
 const ConversationDisplay = ({ 
     conversations, 
     displaySteps, 
@@ -11,43 +14,28 @@ const ConversationDisplay = ({
             {conversations.map((conversation, conversationIndex) => (
                 <div key={conversationIndex} className="mb-8">
                     {conversation.map((result, resultIndex) => (
-                        <div key={resultIndex} className="bg-white rounded-lg shadow-md p-6 mb-4">
-                            <h3 className="text-xl font-bold mb-4">{result.question}</h3>
+                        <div key={resultIndex} className="bg-white rounded-lg shadow-md p-6 mb-4 transition-all duration-300 hover:shadow-lg">
+                            <h3 className="text-2xl font-bold mb-4 text-blue-600">{result.question}</h3>
                             
                             {result.isLoading ? (
-                                <div className="flex justify-center items-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                                 </div>
                             ) : (
                                 <>
-                                    <div className="mb-4">
-                                        <h4 className="font-semibold mb-2">回答：</h4>
-                                        <p className="text-gray-700">{result.summary.conclusion}</p>
-                                    </div>
-                                    
-                                    <div className="mb-4">
-                                        <h4 className="font-semibold mb-2">综合分析：</h4>
-                                        <div 
-                                            className="text-gray-700"
-                                            dangerouslySetInnerHTML={{
-                                                __html: result.summary.analysis 
-                                                    ? result.summary.analysis.replace(
-                                                        /<important>(.*?)<\/important>/g, 
-                                                        '<span class="font-bold text-blue-600">$1</span>'
-                                                    )
-                                                    : '暂无分析'
-                                            }}
-                                        />
+                                    <div className="mb-6">
+                                        <h4 className="text-xl font-semibold mb-3 text-gray-700">回答</h4>
+                                        <MarkdownRenderer content={result.summary.conclusion || '暂无回答'} />
                                     </div>
                                     
                                     {result.relatedQuestions && result.relatedQuestions.length > 0 && (
-                                        <div className="mb-4">
-                                            <h4 className="font-semibold mb-2">相关问题：</h4>
-                                            <ul className="list-disc pl-5">
+                                        <div className="mb-6">
+                                            <h4 className="text-xl font-semibold mb-3 text-gray-700">相关问题：</h4>
+                                            <ul className="list-disc pl-5 space-y-2">
                                                 {result.relatedQuestions.map((question, index) => (
                                                     <li 
                                                         key={index} 
-                                                        className="text-blue-600 cursor-pointer hover:underline"
+                                                        className="text-blue-600 cursor-pointer hover:underline transition-colors duration-200"
                                                         onClick={() => handleSearch(question)}
                                                     >
                                                         {question}
@@ -58,13 +46,13 @@ const ConversationDisplay = ({
                                     )}
                                     
                                     {result.isVideoSearch && result.videoData && (
-                                        <div className="mt-4">
-                                            <h4 className="font-semibold mb-2">相关视频：</h4>
+                                        <div className="mt-6">
+                                            <h4 className="text-xl font-semibold mb-3 text-gray-700">相关视频：</h4>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                                 {result.videoData.map((video, index) => (
-                                                    <div key={index} className="border rounded-lg p-2">
+                                                    <div key={index} className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                                                         <VideoPlayer url={video.download_url} />
-                                                        <p className="mt-2 text-sm">{video.desc}</p>
+                                                        <p className="mt-2 text-sm text-gray-600">{video.desc}</p>
                                                     </div>
                                                 ))}
                                             </div>

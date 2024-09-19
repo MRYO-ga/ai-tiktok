@@ -1,12 +1,11 @@
-// 移除 export 语句
-// const { useState, useEffect, useRef } = React;
+const React = window.React;
+const { useState, useEffect, useRef } = React;
 
-// 使用全局变量
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
     const [input, setInput] = React.useState('');
     const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
-    const models = ['gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo'];
+    const models = ['gpt-4o-mini', 'gpt-4', 'gpt-4o', 'gpt-3.5-turbo'];
     const resultsContainerRef = React.useRef(null);
     const [conversations, setConversations] = React.useState([]);
     const [displaySteps, setDisplaySteps] = React.useState({});
@@ -64,6 +63,23 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("开始获取搜索结果");
             const results = await window.tiktokDownloaderService.getSearchResults(question);
             console.log("获取搜索结果", results);
+            // 处理0个视频的情况
+            if (results.length === 0) {
+                console.log("未找到相关视频");
+                setConversations(prevConversations => {
+                    const updatedConversations = [...prevConversations];
+                    const lastConversation = updatedConversations[updatedConversations.length - 1];
+                    lastConversation[lastConversation.length - 1] = {
+                        ...lastConversation[lastConversation.length - 1],
+                        isLoading: false,
+                        summary: { conclusion: '未找到相关视频', evidence: [] },
+                        relatedQuestions: []
+                    };
+                    return updatedConversations;
+                });
+                setIsLoading(false);
+                return;
+            }
             setSearchResults(results);
     
             // 2. 同时获取音频URL并转录，但逐个获取评论
@@ -145,7 +161,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
             console.log("处理后的视频数据:", processedVideoData);  // 更新视频数据状态
             // 4. 将数据发送给AI进行分析
-            const aiPrompt = processedVideoData.map((video, index) => {
+            const aiPrompt = processedVideoData.slice(0, 3).map((video, index) => {
                 const baseInfo = `
                         视频 ${index + 1}:
                         标题: ${video.desc}
@@ -160,8 +176,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                         预处理后的转录文本: ${video.preprocessedTranscription}
                         `;
 
-                                        const comments = video.comments.map((comment, commentIndex) => `
-                        视频 ${index + 1} 的第 ${commentIndex + 1} 条评论:
+                                        const comments = video.comments.slice(0, 5).map((comment, commentIndex) => `
+                        视频 ${index + 1} 的第 ${commentIndex + 1} ��评论:
                         - ${comment.text}
                         点赞数: ${comment.digg_count}
                         回复数: ${comment.reply_comment_total}
@@ -173,67 +189,58 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("视频和评论获取完成,发送给ai:", aiPrompt);
         
             const systemPrompt = `
-                作为专业的文本处理助手，我会给你提供文章和评论，对文章和评论做处理：
+                你将接收到多个视频的数据，视频主题涉及旅游、消费分析、教育、生活方式、科技、娱乐、文化、商业等。每个视频提供以下内容：
 
-                请遵循以下指南：
-                1. 按主题或关键信息进行分类和提炼。每一个部分会囊括视频中的重点，而不要遗漏任何重要的细节，文章每一个观点都很重要，不要删减，
-                2. 如果文章某一个观点和评论相关性较高，在列出相关观点时，要列出相应评论的点赞数，评估该观点的认同人数。
-                3. 考虑视频发布时间，分析内容时效性和相关背景。
-                5. 生成的相关问题应引导用户深入探讨或思考。
-                6. 如果文本和问题、视频标题完全不相关，可以忽略，根据你自己的想法回答。
-                7. 分析视频的点赞数、评论数、收藏数和分享数，评估视频的受欢迎程度和影响力。
-                8. 考虑评论的点赞数和回复数，识别热门评论和讨论焦点。
-                9. 如果视频评论中有人提到视频中没有提到的内容并且这个内容很有价值，请在综合分析中指出。
+                视频标题
+                作者信息
+                视频点赞、评论、收藏、分享数据
+                预处理后的转录文本
+                高互动评论
+                你的任务是生成一份完整而详细的回答（汇总报告），请确保以下几点：
 
-                请按以下格式提供分析：
+                1、整合多个视频内容
+                视频内容的详细保留: 在汇总多个视频的内容时，不能简化或省略具体细节。包括但不限于地点、价格、体验、感受等具体信息都必须完整保留。例如，旅游视频中关于花费、景点安排、餐饮等细节，必须逐一展现出来。
+                避免按视频列举: 不得逐一���出每个视频的内容，而是将多个视频的内容有机整合在一起，通过主题（如花费、景点、交通等）分类进行汇总。
+                保留原始文本风格: 视频转录文本中的语言风格、叙述方式应保持一致，不应修改原文风格，不得进行任何简化、提炼或概括。
 
-                回答：
-                [简洁回答用户问题，提供核心观点。]
+                2、呈现不同观点和多样化信息
+                不同视频的观点对比: 如果不同视频对同一主题有不同观点（例如花费、旅行体验、推荐的景点等），必须将这些观点逐一呈现。所有不同的立场、角度和细节都需完整保留，不得归类合并或简化。
+                评论的多样性和细节保留: 汇总评论时，需完整呈现每一个评论的内容，确保每个不同的观点、情绪、风格都能体现出来。例如支持与反对的观点、质疑或补充的评论，均需按原文呈现，不做简化。**如果评论与特定视频的观点相关，应将这些评论与相应的观点主题整合在一起，而不是全部分开处理。**
+                确保每个评论的独特性: 不将相似的评论进行归类或整合，每个评论都应独立存在，展现出评论者的具体语气和表达方式。
 
-                综合分析：
-                [整合文章内容、评论和互动数据，回答用户问题。包括对相应观点受欢迎程度和评论热度的分析。]
+                3、细节忠实还原
+                不做总结或简化: ��成的汇总报告不应做个人总结或分析，所有信息必须忠实还原原始转录内容。不得得出任何个人结论或归纳。
+                按细分主题整合: 内容需按照不同的细分主题（如交通、住宿、景点推荐、行程安排等）进行有机整合，而不是按视频逐一列举。整合过程中应保证每个主题下的视频细节和观点保持完整呈现。
+                评论不按视频分开: 评论的汇总也应以主题为导向，而不是按视频列举。确保评论内容展示中，既能看到对同一问题的不同看法，也能通过主题呈现评论者的各类细节反馈。
+                保留原文的形容词: 在汇总报告中，务必保留原文中的所有形容词，以保持原文的描述风格和情感色彩。
 
-                相关问题：
-                1. [深入相关问题1，20-30字]
-                2. [相关问题2，20-30字]
-                3. [相关问题3，20-30字]
-                4. [相关问题4，20-30字]
+                4、标注视频来源: 在汇总时，不要提到"第n个视频"，而是在相应的语句后面标注[来源视频n]，以便准确标识信息来源。
 
-                严格遵循此格式。如无相关信息，可忽略相应部分。
+                例如，在展示多个视频关于悉尼的花费时，你需要将多个视频中的具体细节汇总在一起：包括住宿地点、交通方式、具体价格等，完整展现原始细节，同时保持各个视频的独立观点。如果一个视频认为花费合理，而另一个视频认为过高，你需将这两种观点并列呈现，保留细节，避免过度归类。同样，在高互动评论部分，你需保持评论的多样性。
+
+                **如果评论与特定视频的观点相关，应将这些评论与相应的观点主题整合在一起，而不是全部分开处理。
+                **每个评论者的观点（无论是正面、负面、补充信息或提问）��需逐一呈现，并保留评论中的具体表达和风格，不将相似评论合并为一个大类。
+
+                请直接开始你的回答，无需额外的总结或引言。在回答的最后，请提供5个相关问题。
             `;
 
             const response = await window.openaiService.chatCompletion({
-                model: "gpt-3.5-turbo-0125",
+                model: selectedModel,
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
                 ],
-                // max_tokens: 5000
+                // max_tokens: 2000
             });
     
             console.log("API响应数据:", response);
-            const answer = response.choices[0].message.content;
+            let answer = response.choices[0].message.content;
+            
+            console.log("AI返回的答案(Markdown格式)", answer);
     
-            console.log("开始解析API返回的答案", answer);
-            const answerMatch = answer.match(/回答：([\s\S]*?)(?=\n\n综合分析：|$)/);
-            const mainAnswer = answerMatch ? answerMatch[1].trim() : '';
-
-            const analysisMatch = answer.match(/综合分析：([\s\S]*?)(?=\n\n相关问题：|$)/);
-            const analysis = analysisMatch ? analysisMatch[1].trim() : '';
-
-            const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)$/);
-            const relatedQuestions = relatedQuestionsMatch 
-                ? relatedQuestionsMatch[1].split('\n')
-                    .filter(q => q.trim())
-                    .map(q => q.replace(/^\d+\.\s*/, '').trim())
-                : [];
-
-            console.log("解析完成，更新对话内容");
-            console.log("主要回答:", mainAnswer);
-            console.log("综合分析:", analysis);
-            console.log("相关问题:", relatedQuestions);
-
-            // 更新对话内容
+            // 提取相关问题（如果需要的话）
+            const relatedQuestions = extractRelatedQuestions(answer);
+    
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
@@ -242,9 +249,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     isLoading: false,
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
-                        conclusion: mainAnswer,
-                        analysis: analysis,
-                        evidence: [{ text: analysis, source: '综合分析', url: '#' }]
+                        conclusion: answer, // 直接使用 Markdown 格式的答案
+                        evidence: [{ text: answer, source: 'AI回答', url: '#' }]
                     },
                     relatedQuestions: relatedQuestions,
                     isVideoSearch: true,
@@ -255,7 +261,16 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             });
     
         } catch (error) {
-            console.error('搜索过程中错误:', error);
+            // console.error('搜索过程中错误:', error);
+            console.error('错误详情:', error.response ? error.response.data : '无详细信息');
+            
+            let errorMessage = '抱歉，搜索过程中出现错误。';
+            if (error.response && error.response.data && error.response.data.error) {
+                errorMessage += ` 错误信息: ${error.response.data.error.message || error.response.data.error}`;
+            } else if (error.message) {
+                errorMessage += ` ${error.message}`;
+            }
+
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
@@ -264,9 +279,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     isLoading: false,
                     searchedWebsites: [],
                     summary: { 
-                        conclusion: '抱歉,搜索过程中出现错误。',
-                        analysis: '',  // 添加空的 analysis 字段
-                        evidence: [{ text: error.message, source: '错误信息', url: '#' }]
+                        conclusion: errorMessage,
+                        evidence: [{ text: errorMessage, source: '错误信息', url: '#' }]
                     },
                     relatedQuestions: [],
                     isVideoSearch: isVideoSearch,
@@ -288,6 +302,16 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         }
     };
 
+    // 辅助函数：从答案中提取相关问题（如果需要的话）
+    const extractRelatedQuestions = (answer) => {
+        const relatedQuestionsMatch = answer.match(/##\s*相关问题：([\s\S]*?)(?=##|$)/);
+        if (relatedQuestionsMatch) {
+            return relatedQuestionsMatch[1].split('\n')
+                .map(q => q.trim())
+                .filter(q => q && !q.startsWith('#'));
+        }
+        return [];
+    };
     const scrollToBottom = () => {
         if (resultsContainerRef.current) {
             resultsContainerRef.current.scrollTop = resultsContainerRef.current.scrollHeight;
@@ -370,7 +394,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     const handleProcessTranscription = async (transcription, videoFile) => {
         console.log("开始处理转录文字", transcription);
         if (!transcription) {
-            console.warn("警告：转录文字为空或未定义");
+            console.warn("警：转录文字为空或未定义");
             return;
         }
         try {
@@ -380,7 +404,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("转录处理成功，开始生成相关问题");
 
             const relatedQuestionsResponse = await axios.post(`${BASE_URL}/chat`, {
-                model: "gpt-3.5-turbo",
+                model: selectedModel,
                 messages: [
                     { role: "system", content: "你是一个AI助手，根据给定的文本生成5个相关的问题。" },
                     { role: "user", content: transcription }
