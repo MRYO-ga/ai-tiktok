@@ -169,3 +169,48 @@ body {
 .prose strong {
     font-weight: bold;
 }
+
+/* 保留原有的样式 */
+
+/* 添加以下样式来确保 Markdown 内容正确显示 */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    font-weight: bold !important;
+    margin-top: 1em !important;
+    margin-bottom: 0.5em !important;
+}
+
+.markdown-content h1 { font-size: 2em !important; }
+.markdown-content h2 { font-size: 1.5em !important; }
+.markdown-content h3 { font-size: 1.17em !important; }
+.markdown-content h4 { font-size: 1em !important; }
+.markdown-content h5 { font-size: 0.83em !important; }
+.markdown-content h6 { font-size: 0.67em !important; }
+
+.markdown-content ul,
+.markdown-content ol {
+    list-style: revert !important;
+    margin: 1em 0 !important;
+    padding-left: 40px !important;
+}
+
+.markdown-content li {
+    display: list-item !important;
+}
+
+.markdown-content p {
+    margin-bottom: 1em !important;
+}
+
+/* 确保其他样式不会意外覆盖列表样式 */
+.markdown-content ul {
+    list-style: disc !important;
+}
+
+.markdown-content ol {
+    list-style: decimal !important;
+}
