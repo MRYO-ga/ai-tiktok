@@ -83,7 +83,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             setSearchResults(results);
     
             // 2. 同时获取音频URL并转录，但逐个获取评论
-            const transcriptionPromises = results.slice(0, 3).map(async (result) => {
+            const transcriptionPromises = results.slice(0, 1).map(async (result) => {
                 const audioUrl = result.music_url;
                 console.log("处理视频转录audioUrl:", audioUrl);
                 
@@ -176,8 +176,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                         预处理后的转录文本: ${video.preprocessedTranscription}
                         `;
 
-                                        const comments = video.comments.slice(0, 5).map((comment, commentIndex) => `
-                        视频 ${index + 1} 的第 ${commentIndex + 1} ��评论:
+                                        const comments = video.comments.slice(0, 3).map((comment, commentIndex) => `
+                        视频 ${index + 1} 的第 ${commentIndex + 1} 条评论:
                         - ${comment.text}
                         点赞数: ${comment.digg_count}
                         回复数: ${comment.reply_comment_total}
