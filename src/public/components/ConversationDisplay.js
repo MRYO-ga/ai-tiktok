@@ -1,5 +1,7 @@
 const React = window.React;
+const { useState, useEffect } = React;
 const MarkdownRenderer = window.MarkdownRenderer;
+const CollapsibleLoadingStatus = window.CollapsibleLoadingStatus;
 
 const ConversationDisplay = ({ 
     conversations, 
@@ -17,13 +19,14 @@ const ConversationDisplay = ({
                         <div key={resultIndex} className="bg-white rounded-lg shadow-md p-6 mb-4 transition-all duration-300 hover:shadow-lg">
                             <h3 className="text-2xl font-bold mb-4 text-blue-600">{result.question}</h3>
                             
-                            {result.isLoading ? (
-                                <div className="flex justify-center items-center py-8">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                                </div>
-                            ) : (
+                            <CollapsibleLoadingStatus 
+                                statuses={result.loadingStatuses || []} 
+                                isAllCompleted={!result.isLoading}
+                            />
+                            
+                            {!result.isLoading && (
                                 <>
-                                    <div className="mb-6">
+                                    <div className="my-6">
                                         <h4 className="text-xl font-semibold mb-3 text-gray-700">回答</h4>
                                         <AnnotatedChatMessage 
                                             content={result.summary.conclusion || '暂无回答'} 
@@ -32,7 +35,7 @@ const ConversationDisplay = ({
                                     </div>
                                     
                                     {result.relatedQuestions && result.relatedQuestions.length > 0 && (
-                                        <div className="mb-6">
+                                        <div className="mt-4">
                                             <h4 className="text-xl font-semibold mb-3 text-gray-700">相关问题：</h4>
                                             <ul className="list-disc pl-5 space-y-2">
                                                 {result.relatedQuestions.map((question, index) => (

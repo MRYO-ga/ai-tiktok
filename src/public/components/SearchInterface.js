@@ -36,7 +36,17 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         setIsLoading(true);
         setShowInitialSearch(false);
         onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
-    
+
+        const updateLoadingStatus = (status) => {
+            setConversations(prevConversations => {
+                const updatedConversations = [...prevConversations];
+                const currentConversation = updatedConversations[updatedConversations.length - 1];
+                const lastResult = currentConversation[currentConversation.length - 1];
+                lastResult.loadingStatuses = [...(lastResult.loadingStatuses || []), status];
+                return updatedConversations;
+            });
+        };
+
         setConversations(prevConversations => {
             const newResult = {
                 question: question,
@@ -57,12 +67,14 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 return updatedConversations;
             }
         });
-    
+
         try {
-            // 1. 获取搜索结果
+            updateLoadingStatus('获取搜索结果');
             console.log("开始获取搜索结果");
             const results = await window.tiktokDownloaderService.getSearchResults(question);
             console.log("获取搜索结果", results);
+
+            updateLoadingStatus(`找到 ${results.length} 个相关视频`);
 
             if (results.length === 0) {
                 console.log("未找到相关视频");
@@ -72,6 +84,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     lastConversation[lastConversation.length - 1] = {
                         ...lastConversation[lastConversation.length - 1],
                         isLoading: false,
+                        loadingStatuses: [],
                         summary: { conclusion: '未找到相关视频', evidence: [] },
                         relatedQuestions: []
                     };
@@ -81,9 +94,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 return;
             }
             setSearchResults(results);
-    
-            // 2. 同时获取音频URL并转录，但逐个获取评论
-            const transcriptionPromises = results.slice(0, 1).map(async (result, videoIndex) => {
+
+            const transcriptionPromises = results.slice(0, 3).map(async (result, index) => {
+                updateLoadingStatus(`开始处理视频:${result.desc}`);
                 const audioUrl = result.music_url;
                 console.log("处理视频转录audioUrl:", audioUrl);
                 
@@ -94,7 +107,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
                     // 将 paragraphs 转换为带有时间戳和视频索引的文本
                     const transcriptionText = transcriptionResult.paragraphs.map((p) => 
-                        `[indexAudio:${videoIndex}, start:${p.start}, end:${p.end}] ${p.text}`
+                        `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
                     ).join('\n');
 
                     console.log("转录文本:", transcriptionText);
@@ -137,9 +150,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             });
 
             const transcribedResults = await Promise.all(transcriptionPromises);
-            console.log("所有视频转录和预处理完成:", transcribedResults);
 
-            // 3. 逐个获取评论
+            updateLoadingStatus('获取评论');
             const processedVideoData = [];
             for (const result of transcribedResults) {
                 try {
@@ -157,8 +169,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 }
             }
 
-            console.log("处理后的视频数据:", processedVideoData);  // 更新视频数据状态
-            // 4. 将数据发送给AI进行分析
+            console.log("处理后的视频数据:", processedVideoData);
+
+            updateLoadingStatus('AI分析中');
             const aiPrompt = processedVideoData.slice(0, 3).map((video, index) => {
                 const baseInfo = `
                         文章 ${index + 1}:
@@ -196,12 +209,11 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 ],
                 // max_tokens: 2000
             });
-    
+
             console.log("API响应数据:", response);
             let answer = response.choices[0].message.content;
             
-            // 确保 answer 包含了所有必要的标记
-            console.log("AI返回的答案(包含标记):", answer);
+            console.log("AI返回的答案(Markdown格式)", answer);
 
             // 提取相关问题（如果需要的话）
             const relatedQuestions = extractRelatedQuestions(answer);
@@ -213,9 +225,10 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 const updatedResult = {
                     question: question,
                     isLoading: false,
+                    loadingStatuses: [...currentConversation[currentConversation.length - 1].loadingStatuses, '处理完成'],
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
-                        conclusion: answer, // 直接使用包含标记的答案
+                        conclusion: answer,
                         evidence: [{ text: answer, source: 'AI回答', url: '#' }]
                     },
                     relatedQuestions: relatedQuestions,
@@ -225,7 +238,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
             });
-            // debug：
+            // debug结果显示：
             // const exampleAnswer = window.EXAMPLE_ANSWER
             // setConversations(prevConversations => {
             //     const updatedConversations = [...prevConversations];
@@ -250,26 +263,18 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             // });
     
         } catch (error) {
-            // console.error('搜索过程中错误:', error);
-            console.error('错误详情:', error.response ? error.response.data : '无详细信息');
-            
-            let errorMessage = '抱歉，搜索过程中出现错误。';
-            if (error.response && error.response.data && error.response.data.error) {
-                errorMessage += ` 错误信息: ${error.response.data.error.message || error.response.data.error}`;
-            } else if (error.message) {
-                errorMessage += ` ${error.message}`;
-            }
-
+            console.error('搜索过程中错误:', error);
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
                 const errorResult = {
                     question: question,
                     isLoading: false,
+                    loadingStatuses: [],
                     searchedWebsites: [],
                     summary: { 
-                        conclusion: errorMessage,
-                        evidence: [{ text: errorMessage, source: '错误信息', url: '#' }]
+                        conclusion: `搜索过程中出现错误: ${error.message}`,
+                        evidence: [{ text: `错误: ${error.message}`, source: '错误信息', url: '#' }]
                     },
                     relatedQuestions: [],
                     isVideoSearch: isVideoSearch,
@@ -350,7 +355,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 await handleProcessTranscription(response.data.text, file);
             } catch (error) {
                 console.error('Error uploading video:', error);
-                // 处理错...
+                // 处理错误...
             } finally {
                 setIsLoading(false);
                 setUploadProgress(0);
