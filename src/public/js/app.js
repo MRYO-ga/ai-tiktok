@@ -3,7 +3,7 @@ const { useState, useEffect, useRef, Fragment } = React;
 const DEBUG_MODE = false;
 
 const App = () => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [historyQuestions, setHistoryQuestions] = useState([]);
     const [showInitialSearch, setShowInitialSearch] = useState(true);
     const [currentQuestion, setCurrentQuestion] = useState(null);

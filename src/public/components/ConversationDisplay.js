@@ -25,7 +25,10 @@ const ConversationDisplay = ({
                                 <>
                                     <div className="mb-6">
                                         <h4 className="text-xl font-semibold mb-3 text-gray-700">回答</h4>
-                                        <MarkdownRenderer content={result.summary.conclusion || '暂无回答'} />
+                                        <AnnotatedChatMessage 
+                                            content={result.summary.conclusion || '暂无回答'} 
+                                            videoData={result.videoData}
+                                        />
                                     </div>
                                     
                                     {result.relatedQuestions && result.relatedQuestions.length > 0 && (
@@ -42,20 +45,6 @@ const ConversationDisplay = ({
                                                     </li>
                                                 ))}
                                             </ul>
-                                        </div>
-                                    )}
-                                    
-                                    {result.isVideoSearch && result.videoData && (
-                                        <div className="mt-6">
-                                            <h4 className="text-xl font-semibold mb-3 text-gray-700">相关视频：</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                                {result.videoData.map((video, index) => (
-                                                    <div key={index} className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
-                                                        <VideoPlayer url={video.download_url} />
-                                                        <p className="mt-2 text-sm text-gray-600">{video.desc}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
                                         </div>
                                     )}
                                 </>

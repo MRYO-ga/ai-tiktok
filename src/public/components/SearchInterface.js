@@ -2,7 +2,7 @@ const React = window.React;
 const { useState, useEffect, useRef } = React;
 
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
-    const [input, setInput] = React.useState('');
+    const [input, setInput] = React.useState('悉尼旅游攻略');  // 设置默认值
     const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
     const models = ['gpt-4o-mini', 'gpt-4', 'gpt-4o', 'gpt-3.5-turbo'];
@@ -24,7 +24,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
     React.useEffect(() => {
         console.log("SearchInterface 组件已挂载");
-        console.log("window.SYSTEM_PROMPT:", window.SYSTEM_PROMPT);
         console.log("初始状态:", { showInitialSearch, currentQuestion, isLoading });
         return () => {
             console.log("SearchInterface 组件将卸载");
@@ -64,7 +63,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("开始获取搜索结果");
             const results = await window.tiktokDownloaderService.getSearchResults(question);
             console.log("获取搜索结果", results);
-            // 处理0个视频的情况
+
             if (results.length === 0) {
                 console.log("未找到相关视频");
                 setConversations(prevConversations => {
@@ -84,32 +83,28 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             setSearchResults(results);
     
             // 2. 同时获取音频URL并转录，但逐个获取评论
-            const transcriptionPromises = results.slice(0, 1).map(async (result) => {
+            const transcriptionPromises = results.slice(0, 1).map(async (result, videoIndex) => {
                 const audioUrl = result.music_url;
                 console.log("处理视频转录audioUrl:", audioUrl);
                 
                 try {
                     // 等待转录完成
-                    const transcription = await window.openaiService.transcribeAudio(audioUrl);
-                    console.log("转录完成:", transcription);
+                    const transcriptionResult = await window.openaiService.transcribeAudio(audioUrl);
+                    console.log("转录完成:", transcriptionResult);
 
+                    // 将 paragraphs 转换为带有时间戳和视频索引的文本
+                    const transcriptionText = transcriptionResult.paragraphs.map((p) => 
+                        `[indexAudio:${videoIndex}, start:${p.start}, end:${p.end}] ${p.text}`
+                    ).join('\n');
+
+                    console.log("转录文本:", transcriptionText);
+                    
                     // 转录完成后进行预处理
                     const preprocessedTranscription = await window.openaiService.chatCompletion({
                         model: selectedModel,
                         messages: [
-                            { role: "system", content: `
-                                你是一个文本处理助手。我给你提供视频标题和转录文本，
-                                你先判断转录文本是否与视频标题相关，如果相关，则请对文本进行提取处理，否则输出<不相关>。
-                                
-                                处理要求：
-                                1、去除冗余的话（文章的举例千万不要去除，可以进行适当总结）
-                                2、保留原文的举例
-                                3、保留因果关系的论证
-                                4、保持好原文的推理逻辑，（因为、所以）
-                                5、去除人称视角
-                                6、注意错别字和不通顺的句子（酌情修改）
-                                7、划分句子和段落，不要一长段文字，可以划分成多个点` },
-                            { role: "user", content: `视频标题：${result.desc}\n转录文本：${transcription}` }
+                            { role: "system", content: window.PREPROCESS_PROMPT },
+                            { role: "user", content: `视频标题：${result.desc}\n转录文本：${transcriptionText}` }
                         ],
                         // max_tokens: 1000
                     });
@@ -119,14 +114,16 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     if (preprocessedTranscription.choices[0].message.content === '<不相关>') {
                         return {
                             ...result,
-                            transcription: transcription,
+                            transcription: transcriptionResult.text,
+                            transcriptionParagraphs: transcriptionResult.paragraphs,
                             preprocessedTranscription: '<不相关>'
                         };
                     }
 
                     return {
                         ...result,
-                        transcription: transcription,
+                        transcription: transcriptionResult.text,
+                        transcriptionParagraphs: transcriptionResult.paragraphs,
                         preprocessedTranscription: preprocessedTranscription.choices[0].message.content
                     };
                 } catch (error) {
@@ -164,7 +161,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             // 4. 将数据发送给AI进行分析
             const aiPrompt = processedVideoData.slice(0, 3).map((video, index) => {
                 const baseInfo = `
-                        视频 ${index + 1}:
+                        文章 ${index + 1}:
                         标题: ${video.desc}
                         作者: ${video.nickname}
                         点赞数: ${video.digg_count}
@@ -178,7 +175,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                         `;
 
                                         const comments = video.comments.slice(0, 3).map((comment, commentIndex) => `
-                        视频 ${index + 1} 的第 ${commentIndex + 1} 条评论:
+                        文章 ${index + 1} 的第 ${commentIndex + 1} 条评论:
                         - ${comment.text}
                         点赞数: ${comment.digg_count}
                         回复数: ${comment.reply_comment_total}
@@ -203,8 +200,9 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             console.log("API响应数据:", response);
             let answer = response.choices[0].message.content;
             
-            console.log("AI返回的答案(Markdown格式)", answer);
-    
+            // 确保 answer 包含了所有必要的标记
+            console.log("AI返回的答案(包含标记):", answer);
+
             // 提取相关问题（如果需要的话）
             const relatedQuestions = extractRelatedQuestions(answer);
             console.log("AI返回的相关问题", relatedQuestions);
@@ -217,7 +215,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     isLoading: false,
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
-                        conclusion: answer, // 直接使用 Markdown 格式的答案
+                        conclusion: answer, // 直接使用包含标记的答案
                         evidence: [{ text: answer, source: 'AI回答', url: '#' }]
                     },
                     relatedQuestions: relatedQuestions,
@@ -228,6 +226,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 return updatedConversations;
             });
             // debug：
+            // const exampleAnswer = window.EXAMPLE_ANSWER
             // setConversations(prevConversations => {
             //     const updatedConversations = [...prevConversations];
             //     const currentConversation = updatedConversations[updatedConversations.length - 1];
@@ -236,7 +235,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             //         isLoading: false,
             //         searchedWebsites: [],
             //         summary: {
-            //             conclusion: `### 悉尼视频内容`, 
+            //             conclusion: exampleAnswer, 
             //             evidence: [{ text: '问题：悉尼', source: 'AI回答', url: '#' }]
             //         },
             //         relatedQuestions: [
@@ -351,7 +350,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 await handleProcessTranscription(response.data.text, file);
             } catch (error) {
                 console.error('Error uploading video:', error);
-                // 处理错误...
+                // 处理错...
             } finally {
                 setIsLoading(false);
                 setUploadProgress(0);
@@ -492,13 +491,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             {showInitialSearch ? (
                 <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-blue-50 to-blue-100">
                     <div className="search-container max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-10 transition-all duration-300 hover:shadow-xl">
-                        {/* <div className="flex justify-center mb-10">
-                            <div className="w-32 h-32 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center shadow-md animate-pulse-slow">
-                                <span className="text-white font-bold text-4xl">QXX</span>
-                            </div>
-                        </div> */}
-                        {/* <h2 className="text-5xl font-bold mb-10 text-center text-blue-700">AI视频搜索</h2> */}
-                        
                         <SearchBar 
                             input={input}
                             setInput={setInput}
@@ -515,7 +507,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             />
                         </div>
                         
-                        <HotTopics handleSearch={handleSearch} />
+                        {/* <HotTopics handleSearch={handleSearch} /> */}
                         
                         <VideoUploader 
                             handleVideoUpload={handleVideoUpload}
