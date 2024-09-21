@@ -19,6 +19,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     const [videoData, setVideoData] = React.useState([]);
     const [searchResults, setSearchResults] = React.useState([]);
     const [summary, setSummary] = React.useState('');
+    const [waitingForUserChoices, setWaitingForUserChoices] = useState(null);
 
     const BASE_URL = 'http://localhost:3001/api';
 
@@ -30,7 +31,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         };
     }, []);
 
-    const handleSearch = async (question, isNewQuestion = false, isVideoSearch = false) => {
+    const handleSearch = async (question, isNewQuestion = false, isVideoSearch = false, userChoices = null) => {
         if (!question.trim()) return;
         console.log(`开始搜索: "${question}", 是否新问: ${isNewQuestion}, 是否视频搜索: ${isVideoSearch}`);
         setIsLoading(true);
@@ -55,7 +56,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 summary: { conclusion: '', evidence: [] },
                 relatedQuestions: [],
                 isVideoSearch: isVideoSearch,
-                videoFile: uploadedVideo
+                videoFile: uploadedVideo,
+                loadingStatuses: []
             };
             if (isNewQuestion) {
                 console.log("创建新对话");
@@ -69,6 +71,56 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         });
 
         try {
+            // 使用agent拆解用户意图
+            updateLoadingStatus('分析用户意图');
+            const intentAnalysis = await window.openaiService.chatCompletion({
+                model: selectedModel,
+                messages: [
+                    { role: "system", content: window.INTENT_PROMPT },
+                    { role: "user", content: question }
+                ],
+            });
+            
+            const userIntent = intentAnalysis.choices[0].message.content;
+            console.log("用户意图分析:", userIntent);
+
+            // 解析用户意图
+            let parsedIntent;
+            try {
+                parsedIntent = JSON.parse(userIntent);
+            } catch (error) {
+                console.error("解析用户意图时出错:", error);
+                throw new Error("无法解析用户意图，请重试");
+            }
+
+            if (!parsedIntent || !parsedIntent.mainIntent || !parsedIntent.subIntents || !parsedIntent.processInference) {
+                throw new Error("用户意图分析结果格式不正确，请重试");
+            }
+
+            console.log("处理推理:", parsedIntent.processInference);
+
+            // 更新对话状态，包含全部提问意图
+            setConversations(prevConversations => {
+                const updatedConversations = [...prevConversations];
+                const currentConversation = updatedConversations[updatedConversations.length - 1];
+                const lastResult = currentConversation[currentConversation.length - 1];
+                lastResult.fullIntent = parsedIntent;
+                return updatedConversations;
+            });
+
+            // 使用默认选项或用户选择的选项
+            let searchUserChoices = userChoices || parsedIntent.subIntents
+                .filter(si => si.options && si.options.length > 0)
+                .map(si => ({
+                    intent: si.intent,
+                    choices: si.selectedOptions || si.options.slice(0, 1)
+                }));
+
+            // 生成搜索关键词
+            const searchKeywords = generateSearchKeywords(parsedIntent.mainIntent, searchUserChoices);
+
+            console.log("生成的搜索关键词:", searchKeywords);
+
             updateLoadingStatus('获取搜索结果');
             console.log("开始获取搜索结果");
             const results = await window.tiktokDownloaderService.getSearchResults(question);
@@ -119,6 +171,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
             const VIDEOS_TO_PROCESS = 3; // 可以根据需要调整这个数字
 
+            updateLoadingStatus('处理视频转录');
             const transcriptionPromises = results.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
                 updateLoadingStatus(`开始处理视频:${result.desc}`);
                 const audioUrl = result.music_url;
@@ -243,6 +296,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             const { questions: relatedQuestions, updatedAnswer } = extractRelatedQuestions(answer);
             console.log("AI返回的相关问题", relatedQuestions);
             console.log("更新后的答案", updatedAnswer);
+
+            updateLoadingStatus('处理完成');
 
             // 在处理完所有数据后，更新最终结果
             setConversations(prevConversations => {
@@ -500,6 +555,18 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
 
+    // 新增辅助函数
+    const generateSearchKeywords = (mainIntent, userChoices) => {
+        if (!userChoices || userChoices.length === 0) {
+            return mainIntent; // 如果没有用户选择，只返回主要意图
+        }
+        const choiceKeywords = userChoices
+            .flatMap(choice => choice.choices)
+            .filter(Boolean)
+            .join(' ');
+        return choiceKeywords ? `${mainIntent} ${choiceKeywords}` : mainIntent;
+    };
+
     return (
         <div className="flex flex-col h-full">
             {showInitialSearch ? (
@@ -558,6 +625,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             setSelectedEvidence={setSelectedEvidence}
                             handleSearch={handleSearch}
                             isLoading={isLoading}
+                            waitingForUserChoices={waitingForUserChoices}
+                            setConversations={setConversations}
                         />
                         <EvidenceDisplay 
                             conversations={conversations}
@@ -580,6 +649,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         </div>
     );
 };
+
 
 // 将组件挂载到全局对象上
 window.SearchInterface = SearchInterface;
