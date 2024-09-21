@@ -59,7 +59,7 @@ window.tiktokDownloaderService = {
             return data.map(item => ({
                 ...item,
                 duration: formatDuration(item.duration),
-                create_time: formatDate(item.create_time)
+                create_time: item.create_time
             }));
         } catch (error) {
             console.error('获取搜索结果时出错:', error);
@@ -113,9 +113,12 @@ function formatDuration(duration) {
     return duration; // 保持原格式，因为后端已经格式化过了
 }
 
-function formatDate(timestamp) {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleDateString();
+function formatDate(dateString) {
+    if (!dateString) return '未知';
+    // 假设 dateString 格式为 "2020-01-22 19:03:42"
+    const date = new Date(dateString.replace(' ', 'T')); // 将空格替换为 'T' 以符合 ISO 8601 格式
+    if (isNaN(date.getTime())) return '无效日期';
+    return date.toLocaleString(); // 或者根据需要自定义格式
 }
 
 function parseDuration(duration) {

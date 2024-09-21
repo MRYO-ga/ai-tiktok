@@ -105,4 +105,3 @@ window.EXAMPLE_ANSWER = `
 ## 结论
 悉尼的旅游攻略提供了丰富的信息和多样的选择，适合预算不同的游客。评论中不同的消费观点提供了更多参考，帮助决策和计划未来的旅行。
 `;
-console.log('SYSTEM_PROMPT loaded:', window.SYSTEM_PROMPT); // 添加这行来确认 SYSTEM_PROMPT 已被加载

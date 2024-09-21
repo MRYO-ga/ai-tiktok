@@ -12,18 +12,20 @@ const EvidenceDisplay = ({ conversations, selectedEvidence, transcriptionParagra
 
         return (
             <div key={video.id} className="mb-6 bg-white rounded-lg shadow-md p-4">
-                <img 
-                    src={video.dynamic_cover || video.origin_cover} 
-                    alt={video.desc}
-                    className="w-full h-48 object-cover rounded-t-lg"
-                    onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = '/path/to/fallback/image.jpg';
-                    }}
-                />
-                <h4 className="text-base font-semibold mt-2 truncate" title={video.desc}>{video.desc}</h4>
+                <a href={video.share_url} target="_blank" rel="noopener noreferrer" className="block">
+                    <img 
+                        src={video.dynamic_cover || video.origin_cover} 
+                        alt={video.desc}
+                        className="w-full h-48 object-cover rounded-t-lg hover:opacity-80 transition-opacity"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/path/to/fallback/image.jpg';
+                        }}
+                    />
+                    <h4 className="text-base font-semibold mt-2 truncate text-blue-600 hover:underline" title={video.desc}>{video.desc}</h4>
+                </a>
                 <p className="text-sm text-gray-600">作者: {video.nickname}</p>
-                <p className="text-sm text-gray-600">发布时间: {new Date(video.create_time * 1000).toLocaleString()}</p>
+                <p className="text-sm text-gray-600">发布时间: {video.create_time || '未知'}</p>
                 <div className="mt-2 text-sm text-gray-600">
                     <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -94,7 +96,7 @@ const EvidenceDisplay = ({ conversations, selectedEvidence, transcriptionParagra
                     <div>
                         <h3 className="text-2xl font-bold text-gray-800 mb-4">视频详情</h3>
                         <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
-                            {latestResult.videoData.map(renderVideoDetails)}
+                            {latestResult.videoData.slice(0, latestResult.processedVideoCount || 3).map(renderVideoDetails)}
                         </div>
                     </div>
                 ) : (

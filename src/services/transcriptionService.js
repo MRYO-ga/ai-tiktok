@@ -37,7 +37,7 @@ const transcribeAudio = async (audioUrl) => {
       }
     });
     const audioBuffer = Buffer.from(audioResponse.data);
-    console.log('音频文件下载完成，大小:', audioBuffer.length, '字节');
+    console.log('音频文件下载完成，大小:', (audioBuffer.length / 1024).toFixed(2), 'KB');
 
     const formData = new FormData();
     formData.append('file', audioBuffer, { 

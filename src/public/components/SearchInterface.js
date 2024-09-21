@@ -74,6 +74,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             const results = await window.tiktokDownloaderService.getSearchResults(question);
             console.log("获取搜索结果", results);
 
+            setSearchResults(results);  // 保存搜索结果
+
             updateLoadingStatus(`找到 ${results.length} 个相关视频`);
 
             if (results.length === 0) {
@@ -93,9 +95,31 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 setIsLoading(false);
                 return;
             }
-            setSearchResults(results);
 
-            const transcriptionPromises = results.slice(0, 3).map(async (result, index) => {
+            // 在这里添加显示搜索结果的逻辑
+            setConversations(prevConversations => {
+                const updatedConversations = [...prevConversations];
+                const currentConversation = updatedConversations[updatedConversations.length - 1];
+                const updatedResult = {
+                    ...currentConversation[currentConversation.length - 1],
+                    searchResults: results.slice(0, 10).map(result => ({
+                        origin_cover: result.origin_cover,
+                        dynamic_cover: result.dynamic_cover,
+                        title: result.desc,
+                        author: result.nickname,
+                        likes: result.digg_count,
+                        comments: result.comment_count,
+                        shares: result.share_count,
+                        share_url: result.share_url
+                    }))
+                };
+                currentConversation[currentConversation.length - 1] = updatedResult;
+                return updatedConversations;
+            });
+
+            const VIDEOS_TO_PROCESS = 3; // 可以根据需要调整这个数字
+
+            const transcriptionPromises = results.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
                 updateLoadingStatus(`开始处理视频:${result.desc}`);
                 const audioUrl = result.music_url;
                 console.log("处理视频转录audioUrl:", audioUrl);
@@ -215,53 +239,33 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             
             console.log("AI返回的答案(Markdown格式)", answer);
 
-            // 提取相关问题（如果需要的话）
-            const relatedQuestions = extractRelatedQuestions(answer);
+            // 提取相关问题并更新答案
+            const { questions: relatedQuestions, updatedAnswer } = extractRelatedQuestions(answer);
             console.log("AI返回的相关问题", relatedQuestions);
+            console.log("更新后的答案", updatedAnswer);
 
+            // 在处理完所有数据后，更新最终结果
             setConversations(prevConversations => {
                 const updatedConversations = [...prevConversations];
                 const currentConversation = updatedConversations[updatedConversations.length - 1];
                 const updatedResult = {
+                    ...currentConversation[currentConversation.length - 1],
                     question: question,
                     isLoading: false,
                     loadingStatuses: [...currentConversation[currentConversation.length - 1].loadingStatuses, '处理完成'],
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
-                        conclusion: answer,
-                        evidence: [{ text: answer, source: 'AI回答', url: '#' }]
+                        conclusion: updatedAnswer,
+                        evidence: [{ text: updatedAnswer, source: 'AI回答', url: '#' }]
                     },
                     relatedQuestions: relatedQuestions,
                     isVideoSearch: true,
-                    videoData: processedVideoData
+                    videoData: processedVideoData,
+                    processedVideoCount: VIDEOS_TO_PROCESS // 添加这个字段
                 };
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
             });
-            // debug结果显示：
-            // const exampleAnswer = window.EXAMPLE_ANSWER
-            // setConversations(prevConversations => {
-            //     const updatedConversations = [...prevConversations];
-            //     const currentConversation = updatedConversations[updatedConversations.length - 1];
-            //     const updatedResult = {
-            //         question: question,
-            //         isLoading: false,
-            //         searchedWebsites: [],
-            //         summary: {
-            //             conclusion: exampleAnswer, 
-            //             evidence: [{ text: '问题：悉尼', source: 'AI回答', url: '#' }]
-            //         },
-            //         relatedQuestions: [
-            //             "澳洲的特色食材有哪些，如何融入日常饮食？",
-            //             "留学生在澳洲的日常生活中，需要面对哪些潜在挑战？"
-            //         ],
-            //         isVideoSearch: true,
-            //         videoData: []
-            //     };
-            //     currentConversation[currentConversation.length - 1] = updatedResult;
-            //     return updatedConversations;
-            // });
-    
         } catch (error) {
             console.error('搜索过程中错误:', error);
             setConversations(prevConversations => {
@@ -296,15 +300,20 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         }
     };
 
-    // 辅助函数：从答案中提取相关问题（如果需要的话）
     const extractRelatedQuestions = (answer) => {
-        const relatedQuestionsMatch = answer.match(/##\s*相关问题：([\s\S]*?)(?=##|$)/);
+        const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)(?=\n\n|$)/);
         if (relatedQuestionsMatch) {
-            return relatedQuestionsMatch[1].split('\n')
+            const relatedQuestionsText = relatedQuestionsMatch[1];
+            const questions = relatedQuestionsText.split('\n')
                 .map(q => q.trim())
-                .filter(q => q && !q.startsWith('#'));
+                .filter(q => q && !q.startsWith('#') && !q.startsWith('相关问题：'));
+            
+            // 从原文中删除相关问题部分
+            answer = answer.replace(/相关问题：[\s\S]*?(?=\n\n|$)/, '').trim();
+            
+            return { questions, updatedAnswer: answer };
         }
-        return [];
+        return { questions: [], updatedAnswer: answer };
     };
     const scrollToBottom = () => {
         if (resultsContainerRef.current) {
