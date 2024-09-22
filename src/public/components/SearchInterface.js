@@ -82,7 +82,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             });
             
             const userIntent = intentAnalysis.choices[0].message.content;
-            console.log("用户意图分析:", userIntent);
 
             // 解析用户意图
             let parsedIntent;
@@ -97,7 +96,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 throw new Error("用户意图分析结果格式不正确，请重试");
             }
 
-            console.log("处理推理:", parsedIntent.processInference);
+            console.log("用户意图:", parsedIntent.processInference);
 
             // 更新对话状态，包含全部提问意图
             setConversations(prevConversations => {
@@ -117,7 +116,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 }));
 
             // 生成搜索关键词
-            const searchKeywords = generateSearchKeywords(parsedIntent.mainIntent, searchUserChoices);
+            const searchKeywords = generateSearchKeywords(question, searchUserChoices);
 
             console.log("生成的搜索关键词:", searchKeywords);
 
@@ -169,9 +168,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 return updatedConversations;
             });
 
-            const VIDEOS_TO_PROCESS = 3; // 可以根据需要调整这个数字
-
-            updateLoadingStatus('处理视频转录');
+            const VIDEOS_TO_PROCESS = 3;
             const transcriptionPromises = results.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
                 updateLoadingStatus(`开始处理视频:${result.desc}`);
                 const audioUrl = result.music_url;
@@ -182,46 +179,17 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     const transcriptionResult = await window.openaiService.transcribeAudio(audioUrl);
                     console.log("转录完成:", transcriptionResult);
 
-                    // 将 paragraphs 转换为带有时间戳和视频索引的文本
-                    const transcriptionText = transcriptionResult.paragraphs.map((p) => 
-                        `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
-                    ).join('\n');
-
-                    console.log("转录文本:", transcriptionText);
-                    
-                    // 转录完成后进行预处理
-                    const preprocessedTranscription = await window.openaiService.chatCompletion({
-                        model: selectedModel,
-                        messages: [
-                            { role: "system", content: window.PREPROCESS_PROMPT },
-                            { role: "user", content: `视频标题：${result.desc}\n转录文本：${transcriptionText}` }
-                        ],
-                        // max_tokens: 1000
-                    });
-
-                    console.log("预处理完成:", preprocessedTranscription.choices[0].message.content);
-
-                    if (preprocessedTranscription.choices[0].message.content === '<不相关>') {
-                        return {
-                            ...result,
-                            transcription: transcriptionResult.text,
-                            transcriptionParagraphs: transcriptionResult.paragraphs,
-                            preprocessedTranscription: '<不相关>'
-                        };
-                    }
-
                     return {
                         ...result,
                         transcription: transcriptionResult.text,
-                        transcriptionParagraphs: transcriptionResult.paragraphs,
-                        preprocessedTranscription: preprocessedTranscription.choices[0].message.content
+                        transcriptionParagraphs: transcriptionResult.paragraphs
                     };
                 } catch (error) {
                     console.error("处理视频转录失败:", error);
                     return {
                         ...result,
                         transcription: "音频转换失败",
-                        preprocessedTranscription: "预处理失败"
+                        transcriptionParagraphs: []
                     };
                 }
             });
@@ -248,8 +216,8 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 
             console.log("处理后的视频数据:", processedVideoData);
 
-            updateLoadingStatus('AI分析中');
-            const aiPrompt = processedVideoData.slice(0, 3).map((video, index) => {
+            updateLoadingStatus('提取信息中');
+            const collectedArticlesAndComments = processedVideoData.slice(0, VIDEOS_TO_PROCESS).map((video, index) => {
                 const baseInfo = `
                         文章 ${index + 1}:
                         标题: ${video.desc}
@@ -260,31 +228,77 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                         分享数: ${video.share_count}
                         `;
 
-                                        const transcription = video.preprocessedTranscription === '<不相关>' ? '' : `
-                        预处理后的转录文本: ${video.preprocessedTranscription}
-                        `;
+                const transcription = video.transcriptionParagraphs.map((p) => 
+                            `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
+                        ).join('\n');
 
-                                        const comments = video.comments.slice(0, 3).map((comment, commentIndex) => `
+                const comments = video.comments.slice(0, 3).map((comment, commentIndex) => `
                         文章 ${index + 1} 的第 ${commentIndex + 1} 条评论:
                         - ${comment.text}
                         点赞数: ${comment.digg_count}
                         回复数: ${comment.reply_comment_total}
                         `).join('\n');
 
-                return `${baseInfo}${transcription}${comments}`;
+                return `${baseInfo}\n${transcription}\n${comments}`;
             }).join('\n\n');
 
-            console.log("视频和评论获取完成,发送给ai:", aiPrompt);
+            console.log("视频和评论获取完成:", collectedArticlesAndComments);
 
-            const systemPrompt = window.SYSTEM_PROMPT || '你是一个AI助手，请回答用户的问题。';
-
-            const response = await window.openaiService.chatCompletion({
+            // 使用 SEARCH_AGENT 进行预处理
+            const searchAgentResponse = await window.openaiService.chatCompletion({
                 model: selectedModel,
                 messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `问题: ${question}\n\n${aiPrompt}` }
+                    { role: "system", content: window.SEARCH_AGENT },
+                    { role: "user", content: `问题: ${question}\n\n${collectedArticlesAndComments}` }
                 ],
-                // max_tokens: 2000
+            });
+
+            let searchAgentResult;
+            try {
+                searchAgentResult = JSON.parse(searchAgentResponse.choices[0].message.content);
+                console.log("检索和提取结果:", searchAgentResult);
+            } catch (error) {
+                console.error("解析预处理结果失败:", error);
+                searchAgentResult = { relevantParagraphs: [], relevantComments: [] };
+            }
+
+            // 根据用户意图预生成答案
+            const preGeneratedAnswer = await window.openaiService.chatCompletion({
+                model: selectedModel,
+                messages: [
+                    { role: "system", content: `根据用户意图${collectedArticlesAndComments}生成一个详细全面的答案。` },
+                    { role: "user", content: `问题: ${question}\n` }
+                ],
+            });
+
+            const preGeneratedAnswerText = preGeneratedAnswer.choices[0].message.content;
+
+            // 准备最终的AI输入
+            const answerAgentInput = `
+                问题: ${question}
+
+                用户意图: ${parsedIntent.processInference}
+
+                预生成答案: ${preGeneratedAnswerText}
+
+                相关段落:
+                ${searchAgentResult.relevantParagraphs.map(p => 
+                    `[indexAudio:${p.indexAudio}, start:${p.start}, end:${p.end}] ${p.text}`
+                ).join('\n')}
+
+                相关评论:
+                ${searchAgentResult.relevantComments.map(c => 
+                    `[indexAudio:${c.indexAudio}, commentIndex:${c.commentIndex}] ${c.text}`
+                ).join('\n')}
+            `;
+
+            console.log('生成答案中', answerAgentInput);
+            const response = await window.openaiService.chatCompletion({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: window.ANSWER_PROMPT },
+                    { role: "user", content: answerAgentInput }
+                ],
             });
 
             console.log("API响应数据:", response);
@@ -311,12 +325,18 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                     searchedWebsites: processedVideoData.map(result => result.download_url),
                     summary: {
                         conclusion: updatedAnswer,
-                        evidence: [{ text: updatedAnswer, source: 'AI回答', url: '#' }]
+                        evidence: searchAgentResult.relevantParagraphs.map(p => ({
+                            text: p.text,
+                            source: `视频 ${p.indexAudio + 1}`,
+                            start: p.start,
+                            end: p.end
+                        }))
                     },
                     relatedQuestions: relatedQuestions,
                     isVideoSearch: true,
                     videoData: processedVideoData,
-                    processedVideoCount: VIDEOS_TO_PROCESS // 添加这个字段
+                    processedVideoCount: VIDEOS_TO_PROCESS,
+                    userIntent: searchAgentResult.processInference
                 };
                 currentConversation[currentConversation.length - 1] = updatedResult;
                 return updatedConversations;
@@ -554,17 +574,25 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         const remainingSeconds = Math.floor(seconds % 60);
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
-
+    
     // 新增辅助函数
-    const generateSearchKeywords = (mainIntent, userChoices) => {
+    const generateSearchKeywords = (userQuestion, userChoices) => {
         if (!userChoices || userChoices.length === 0) {
-            return mainIntent; // 如果没有用户选择，只返回主要意图
+            return [userQuestion]; // 如果没有用户选择,只返回原始问题
         }
-        const choiceKeywords = userChoices
-            .flatMap(choice => choice.choices)
-            .filter(Boolean)
-            .join(' ');
-        return choiceKeywords ? `${mainIntent} ${choiceKeywords}` : mainIntent;
+        
+        const baseKeywords = [userQuestion];
+        const choiceKeywords = userChoices.flatMap(choice => choice.choices).filter(Boolean);
+        
+        // 生成不同组合的搜索关键词
+        const combinations = [
+            ...baseKeywords,
+            ...choiceKeywords.map(keyword => `${userQuestion} ${keyword}`),
+            `${userQuestion} ${choiceKeywords.join(' ')}`
+        ];
+        
+        // 去重并返回
+        return [...new Set(combinations)];
     };
 
     return (

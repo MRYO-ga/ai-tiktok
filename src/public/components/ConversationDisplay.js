@@ -33,10 +33,10 @@ const ConversationDisplay = ({
     const resultsContainerRef = useRef(null);
     const videoScrollRef = useRef(null);
 
-    useEffect(() => {
-        console.log("waitingForUserChoices changed:", waitingForUserChoices);
-        console.log("conversations:", conversations);
-    }, [waitingForUserChoices, conversations]);
+    // useEffect(() => {
+    //     console.log("waitingForUserChoices changed:", waitingForUserChoices);
+    //     console.log("conversations:", conversations);
+    // }, [waitingForUserChoices, conversations]);
 
     const scrollVideos = (direction) => {
         if (videoScrollRef.current) {

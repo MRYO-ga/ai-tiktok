@@ -10,6 +10,7 @@ const { promisify } = require('util');
 const stream = require('stream');
 const pipeline = promisify(stream.pipeline);
 const { OPEN_AI_KEY, BD_API_KEY, LLM_BASE_URL, BASE_URL, USE_HTTPS_AGENT, PROXY_URL } = require('../config');
+const { recordWhisperUsage } = require('./openaiService');
 
 // 设置代理
 const proxyUrl = PROXY_URL; // 使用环境变量中的代理地址
@@ -66,6 +67,12 @@ const transcribeAudio = async (audioUrl) => {
 
     const paragraphs = combineSegmentsIntoParagraphs(segments);
     console.log(`段落数量: ${paragraphs.length}`);
+
+    // 计算音频总时长
+    const totalDuration = segments.reduce((acc, segment) => Math.max(acc, segment.end), 0);
+    
+    // 记录Whisper使用情况
+    await recordWhisperUsage(totalDuration);
 
     return {
       text: whisperResponse.data.text,
@@ -183,6 +190,12 @@ const convertAndTranscribe = async (file) => {
 
     const paragraphs = combineSegmentsIntoParagraphs(segments);
     console.log(`段落数量: ${paragraphs.length}`);
+
+    // 计算音频总时长
+    const totalDuration = segments.reduce((acc, segment) => Math.max(acc, segment.end), 0);
+    
+    // 记录Whisper使用情况
+    await recordWhisperUsage(totalDuration);
 
     return {
       text: response.data.text,
@@ -304,6 +317,12 @@ const convertAndTranscribeUrl = async (url) => {
     const paragraphs = combineSegmentsIntoParagraphs(segments);
     console.log(`段落数量: ${paragraphs.length}`);
 
+    // 计算音频总时长
+    const totalDuration = segments.reduce((acc, segment) => Math.max(acc, segment.end), 0);
+    
+    // 记录Whisper使用情况
+    await recordWhisperUsage(totalDuration);
+
     return {
       text: response.data.text,
       paragraphs: paragraphs
@@ -374,10 +393,11 @@ const processTranscription = async (transcription) => {
   return { summary, preprocessed };
 };
 
-const combineSegmentsIntoParagraphs = (segments, maxParagraphDuration = 30) => {
+const combineSegmentsIntoParagraphs = (segments, maxParagraphDuration = 30, maxCharacters = 100) => {
   console.log('开始合并段落');
   console.log(`输入段落数: ${segments.length}`);
   console.log(`最大段落持续时间: ${maxParagraphDuration}秒`);
+  console.log(`最大段落字数: ${maxCharacters}字`);
 
   const paragraphs = [];
   let currentParagraph = { start: 0, end: 0, text: '' };
@@ -385,7 +405,8 @@ const combineSegmentsIntoParagraphs = (segments, maxParagraphDuration = 30) => {
   segments.forEach((segment, index) => {
     if (currentParagraph.text === '' || 
         (segment.start - currentParagraph.end) < 2 && 
-        (segment.end - currentParagraph.start) < maxParagraphDuration) {
+        (segment.end - currentParagraph.start) < maxParagraphDuration &&
+        (currentParagraph.text.length + segment.text.length) <= maxCharacters) {
       currentParagraph.end = segment.end;
       currentParagraph.text += (currentParagraph.text ? ' ' : '') + segment.text;
     } else {
