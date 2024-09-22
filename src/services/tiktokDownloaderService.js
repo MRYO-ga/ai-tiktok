@@ -63,7 +63,7 @@ const getUserData = async (username) => {
 };
 
 // 采集搜索结果数据 (抖音)
-const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '1', publish_time = '0') => {
+const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '0', publish_time = '0') => {
     try {
         const response = await axios.post(`${TIK_TOK_DOWNLOADER_API_URL}/search/`, {
             keyword,

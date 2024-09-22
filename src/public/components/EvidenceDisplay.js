@@ -4,10 +4,10 @@ const EvidenceDisplay = ({ conversations, selectedEvidence, transcriptionParagra
     const latestResult = latestConversation[latestConversation.length - 1];
 
     const renderVideoDetails = (video) => {
-        const getSummary = (preprocessedTranscription) => {
-            if (preprocessedTranscription === '<不相关>') return '';
-            const summaryMatch = preprocessedTranscription.match(/文章总结：([\s\S]*?)$/);
-            return summaryMatch ? summaryMatch[1].trim() : '';
+        const getSummary = (text) => {
+            if (!text) return ''; // 添加空值检查
+            const match = text.match(/Summary:([\s\S]*?)(?:\n\n|$)/);
+            return match ? match[1].trim() : '';
         };
 
         return (

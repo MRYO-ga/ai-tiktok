@@ -214,8 +214,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 }
             }
 
-            console.log("处理后的视频数据:", processedVideoData);
-
             updateLoadingStatus('提取信息中');
             const collectedArticlesAndComments = processedVideoData.slice(0, VIDEOS_TO_PROCESS).map((video, index) => {
                 const baseInfo = `
@@ -309,7 +307,6 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             // 提取相关问题并更新答案
             const { questions: relatedQuestions, updatedAnswer } = extractRelatedQuestions(answer);
             console.log("AI返回的相关问题", relatedQuestions);
-            console.log("更新后的答案", updatedAnswer);
 
             updateLoadingStatus('处理完成');
 

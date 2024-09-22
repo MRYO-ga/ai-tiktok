@@ -168,10 +168,6 @@ const ConversationDisplay = ({
         handleSearch(result.question, false, result.isVideoSearch, userChoices);
     };
 
-    useEffect(() => {
-        console.log("Conversations updated:", conversations);
-    }, [conversations]);
-
     return (
         <div className="flex-1 overflow-y-auto p-4" ref={resultsContainerRef}>
             {conversations.map((conversation, index) => (

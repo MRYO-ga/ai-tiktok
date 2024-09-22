@@ -42,7 +42,7 @@
 
 // tiktokDownloaderService
 window.tiktokDownloaderService = {
-    getSearchResults: async (keyword, type = '0', pages = '1', sort_type = '1', publish_time = '0') => {
+    getSearchResults: async (keyword, type = '0', pages = '1', sort_type = '0', publish_time = '0') => {
         try {
             const response = await fetch('/api/search', {
                 method: 'POST',
