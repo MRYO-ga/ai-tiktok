@@ -175,7 +175,7 @@ window.xiaohongshuService = {
     searchNotes: async (keyword, page = 1, sort = 'general', noteType = '_0') => {
         try {
             console.log("搜索小红书笔记", keyword, page, sort, noteType);
-            const response = await fetch('/api/xiaohongshu/search_notes', {
+            const response = await fetch('/api/search_notes', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -196,11 +196,12 @@ window.xiaohongshuService = {
     getNoteInfo: async (noteId) => {
         try {
             console.log("获取小红书笔记详情", noteId);
-            const response = await fetch(`/api/xiaohongshu/get_note_info?note_id=${noteId}`, {
-                method: 'GET',
+            const response = await fetch(`/api/get_note_info`, {
+                method: 'POST',
                 headers: {
-                    'accept': 'application/json',
-                }
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ note_id: noteId }),
             });
             if (!response.ok) {
                 const errorData = await response.json();
@@ -210,6 +211,27 @@ window.xiaohongshuService = {
             return data;
         } catch (error) {
             console.error('获取小红书笔记详情时出错:', error);
+            throw error;
+        }
+    },
+    getNoteComments: async (noteId, lastCursor = '') => {
+        try {
+            console.log("获取小红书笔记评论", noteId);
+            const response = await fetch(`/api/get_note_comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ note_id: noteId, lastCursor }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('获取小红书笔记评论时出错:', error);
             throw error;
         }
     }

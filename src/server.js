@@ -4,8 +4,9 @@ const path = require('path');
 const cors = require('cors');
 const { LLM_BASE_URL } = require('./config');
 const tiktokRoutes = require('./routes/tiktok');
-const transcribeRoutes = require('./routes/transcribe'); // 添加这行
-const chatRoutes = require('./routes/chat'); // 添加这行
+const transcribeRoutes = require('./routes/transcribe');
+const xiaohongshuRoutes = require('./routes/xiaohongshu');
+const chatRoutes = require('./routes/chat');
 const chatRouter = require('./routes/chat');
 
 const app = express();
@@ -19,10 +20,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API 路由
 app.use('/api', tiktokRoutes);
-app.use('/api', transcribeRoutes); // 添加这行
-app.use('/api', chatRoutes); // 添加这行
-app.use('/api/chat', chatRouter);
 
+app.use('/api', transcribeRoutes);
+app.use('/api', chatRoutes);
+app.use('/api/chat', chatRouter);
+app.use('/api', xiaohongshuRoutes);
 // 根路由处理
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

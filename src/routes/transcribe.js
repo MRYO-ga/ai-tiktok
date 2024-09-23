@@ -44,7 +44,7 @@ router.post('/process-transcription', async (req, res, next) => {
     console.log("转录处理完成，返回结果:", result);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: '处理转录时发生错误', details: error.message });
+    res.status(error.response.status || 500).json({ error: '处理转录时发生错误', details: error.message });
   }
 });
 
@@ -73,18 +73,8 @@ router.post('/transcribe', async (req, res) => {
         details: error.response.data
       });
     } else {
-      res.status(500).json({ error: '转录过程中出现错误', message: error.message });
+      res.status(error.response.status || 500).json({ error: '转录过程中出现错误', message: error.message });
     }
-  }
-});
-
-router.post('/xiaohongshu/search_notes', async (req, res) => {
-  try {
-    const { keyword, page, sort, noteType } = req.body;
-    const result = await xiaohongshuService.searchNotes(keyword, page, sort, noteType);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: '搜索小红书笔记时出错', message: error.message });
   }
 });
 

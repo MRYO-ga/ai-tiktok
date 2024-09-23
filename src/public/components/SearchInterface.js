@@ -87,7 +87,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 console.log("\n数据部分:");
                 
                 if (data.data && data.data.data && data.data.data.items) {
-                    data.data.data.items.forEach((item, index) => {
+                    data.data.data.items.slice(0, 3).forEach((item, index) => {
                         if (item.note) {
                             console.log(`\n笔记 ${index + 1}：`);
                             console.log("  标题:", item.note.display_title);
@@ -112,15 +112,119 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                 console.log("\n记录时间:", data.data.recordTime);
             }
 
+            // 添加新的函数来提取和打印评论信息
+            const extractAndPrintComments = (comments) => {
+                console.log(`总评论数: ${comments.data.comment_count}`);
+                console.log(`一级评论数: ${comments.data.comment_count_l1}`);
+                console.log(`是否还有更多评论: ${comments.data.has_more ? '是' : '否'}`);
+                console.log(`游标: ${comments.data.cursor}`);
+
+                console.log("\n前10条评论概要:");
+                comments.data.comments.slice(0, 10).forEach((comment, index) => {
+                    console.log(`${index + 1}. 用户: ${comment.user.nickname}`);
+                    console.log(`   内容: ${comment.content}`);
+                    console.log(`   点赞数: ${comment.like_count}`);
+                    console.log(`   子评论数: ${comment.sub_comment_count}`);
+                    if (comment.sub_comments && comment.sub_comments.length > 0) {
+                        console.log(`   回复: ${comment.sub_comments[0].content}`);
+                    }
+                    console.log('');
+                });
+            };
+
             printJsonData(results);
             // 获取每个笔记的详细信息
-            const detailedResults = await Promise.all(results.data.data.items.slice(0, 3).map(async (note) => {
-                const noteInfo = await window.xiaohongshuService.getNoteInfo(note.note.id);
-                return { ...note, ...noteInfo };
+            const detailedResults = await Promise.all(results.data.data.items.slice(0, 1).map(async (item) => {
+                if (item.note) {
+                    let noteInfo;
+                    let comments;
+                    try {
+                        // 获取笔记详情
+                        noteInfo = await getNoteInfoWithRetry(item.note.id);
+                        
+                        console.log("作品详情", noteInfo);
+                        if (noteInfo?.noteInfo?.data?.data?.data) {
+                            const { note_list, user } = noteInfo.noteInfo.data.data.data[0];
+                            const note = note_list[0];
+                            const {
+                                share_info: { link },
+                                desc,
+                                shared_count,
+                                comments_count,
+                                liked_count,
+                                title,
+                                image_list
+                            } = note;
+                            const { image, nickname } = user;
+                            
+                            console.log("getNoteInfo详情", noteInfo.noteInfo);
+                            console.log("note小红书链接", link);
+                            console.log("note内容", desc);
+                            console.log("分享数", shared_count);
+                            console.log("评论数", comments_count);
+                            console.log("点赞数", liked_count);
+                            console.log("标题", title);
+                            console.log("用户头像", image);
+                            console.log("用户名", nickname);
+                            console.log("原图", image_list[0].original);
+                            console.log("低质量图片", image_list[0].url_multi_level.low);
+                        }
+                        // 获取评论
+                        let allComments = [];
+                        let lastCursor = '';
+                        const MAX_PAGES = 3; // 设置您想要获取的最大页数
+
+                        for (let i = 0; i < MAX_PAGES; i++) {
+                            const commentsPage = await getNoteCommentsWithRetry(item.note.id, lastCursor);
+                            if (commentsPage && commentsPage.data && commentsPage.data.data) {
+                                allComments = allComments.concat(commentsPage.data.data.comments);
+                                lastCursor = commentsPage.data.data.cursor;
+                                if (i === 0) {
+                                    // 只为第一页评论调用提取和打印函数
+                                    extractAndPrintComments(commentsPage.data);
+                                }
+                                if (!lastCursor) break; // 如果没有更多评论，退出循环
+                            } else {
+                                break; // 如果获取评论失败，退出循环
+                            }
+                        }
+
+                        console.log("所有评论", allComments);
+                        noteInfo.comments = allComments;
+                    } catch (error) {
+                        console.error('获取笔记详情或评论时出错:', error);
+                        if (error.response) {
+                            switch (error.response.status) {
+                                case 400:
+                                    console.log("请求格式错误或参数不正确,或者服务器内部错误");
+                                    break;
+                                case 401:
+                                    console.log("API令牌无效或缺失");
+                                    break;
+                                case 403:
+                                    console.log("缺少路由访问权限或账户问题");
+                                    break;
+                                case 404:
+                                    console.log("路由数据未找到");
+                                    break;
+                                case 402:
+                                    console.log("余额不足，需要付费");
+                                    break;
+                                case 429:
+                                    console.log("请求速度过快，超过速率限制");
+                                    break;
+                                case 500:
+                                    console.log("服务器内部错误");
+                                    break;
+                                default:
+                                    console.log("未知错误");
+                            }
+                        }
+                    }
+                    return { ...item, noteInfo };
+                }
+                return item;
             }));
-
-            console.log("获取小红书笔记详情", detailedResults);
-
 
         } catch (error) {
             console.error('搜索过程中错误:', error);
@@ -156,6 +260,29 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         }
     };
 
+    const getNoteInfoWithRetry = async (noteId) => {
+        try {
+            return await window.xiaohongshuService.getNoteInfo(noteId);
+        } catch (error) {
+            if (error.response && error.response.status === 400) {
+                console.log("getNoteInfo 请求400错误，重试中...");
+                return await window.xiaohongshuService.getNoteInfo(noteId);
+            }
+            throw error;
+        }
+    };
+    
+    const getNoteCommentsWithRetry = async (noteId, lastCursor = '') => {
+        try {
+            return await window.xiaohongshuService.getNoteComments(noteId, lastCursor);
+        } catch (error) {
+            if (error.response && error.response.status === 400) {
+                console.log("getNoteComments 请求400错误，重试中...");
+                return await window.xiaohongshuService.getNoteComments(noteId, lastCursor);
+            }
+            throw error;
+        }
+    };
     const extractRelatedQuestions = (answer) => {
         const relatedQuestionsMatch = answer.match(/相关问题：([\s\S]*?)(?=\n\n|$)/);
         if (relatedQuestionsMatch) {
