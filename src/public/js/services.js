@@ -114,7 +114,7 @@ function formatDuration(duration) {
 }
 
 function formatDate(dateString) {
-    if (!dateString) return '未知';
+    if (!dateString) return '未';
     // 假设 dateString 格式为 "2020-01-22 19:03:42"
     const date = new Date(dateString.replace(' ', 'T')); // 将空格替换为 'T' 以符合 ISO 8601 格式
     if (isNaN(date.getTime())) return '无效日期';
@@ -166,6 +166,51 @@ window.openaiService = {
         } catch (error) {
             console.error('转录音频时出错:', error);
             return "转录失败";
+        }
+    }
+};
+
+// 小红书服务
+window.xiaohongshuService = {
+    searchNotes: async (keyword, page = 1, sort = 'general', noteType = '_0') => {
+        try {
+            console.log("搜索小红书笔记", keyword, page, sort, noteType);
+            const response = await fetch('/api/xiaohongshu/search_notes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ keyword, page, sort, noteType }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('搜索小红书笔记时出错:', error);
+            throw error;
+        }
+    },
+    getNoteInfo: async (noteId) => {
+        try {
+            console.log("获取小红书笔记详情", noteId);
+            const response = await fetch(`/api/xiaohongshu/get_note_info?note_id=${noteId}`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                }
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('获取小红书笔记详情时出错:', error);
+            throw error;
         }
     }
 };

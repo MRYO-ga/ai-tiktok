@@ -5,6 +5,7 @@ const upload = multer();
 const { convertAndTranscribe, convertAndTranscribeUrl, processTranscription } = require('../services/transcriptionService');
 const { BASE_URL } = require('../config');  // 添加这行
 const transcriptionService = require('../services/transcriptionService');
+const xiaohongshuService = require('../services/xiaohongshuService');
 
 router.post('/convert-and-transcribe', upload.single('file'), async (req, res, next) => {
   try {
@@ -74,6 +75,16 @@ router.post('/transcribe', async (req, res) => {
     } else {
       res.status(500).json({ error: '转录过程中出现错误', message: error.message });
     }
+  }
+});
+
+router.post('/xiaohongshu/search_notes', async (req, res) => {
+  try {
+    const { keyword, page, sort, noteType } = req.body;
+    const result = await xiaohongshuService.searchNotes(keyword, page, sort, noteType);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: '搜索小红书笔记时出错', message: error.message });
   }
 });
 

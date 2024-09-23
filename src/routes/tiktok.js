@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const tiktokDownloaderService = require('../services/tiktokDownloaderService');
 const transcriptionService = require('../services/transcriptionService');
+const axios = require('axios');
+const xiaohongshuService = require('../services/xiaohongshuService');
 
 router.post('/search', async (req, res) => {
     try {
@@ -56,6 +58,30 @@ router.post('/comments', async (req, res) => {
     } catch (error) {
         console.error('获取评论出错:', error);
         res.status(500).json({ error: '获取评论时发生错误', message: error.message });
+    }
+});
+
+router.post('/api/xiaohongshu/search_notes', async (req, res) => {
+    const { keyword, page = 1, sort = 'general', noteType = '_0' } = req.body;
+
+    try {
+        const response = await xiaohongshuService.searchNotes(keyword, page, sort, noteType);
+        res.json(response);
+    } catch (error) {
+        console.error('小红书搜索接口调用出错:', error);
+        res.status(500).json({ error: '小红书搜索接口调用出错', details: error.message });
+    }
+});
+
+router.get('/api/xiaohongshu/get_note_info', async (req, res) => {
+    const { note_id } = req.query;
+
+    try {
+        const response = await xiaohongshuService.getNoteInfo(note_id);
+        res.json(response);
+    } catch (error) {
+        console.error('小红书获取笔记详情接口调用出错:', error);
+        res.status(500).json({ error: '小红书获取笔记详情接口调用出错', details: error.message });
     }
 });
 

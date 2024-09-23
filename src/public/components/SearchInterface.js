@@ -71,273 +71,57 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         });
 
         try {
-            // 使用agent拆解用户意图
-            updateLoadingStatus('分析用户意图');
-            const intentAnalysis = await window.openaiService.chatCompletion({
-                model: selectedModel,
-                messages: [
-                    { role: "system", content: window.INTENT_PROMPT },
-                    { role: "user", content: question }
-                ],
-            });
-            
-            const userIntent = intentAnalysis.choices[0].message.content;
+            const results = await window.xiaohongshuService.searchNotes(question);
+            // 执行打印函数
 
-            // 解析用户意图
-            let parsedIntent;
-            try {
-                parsedIntent = JSON.parse(userIntent);
-            } catch (error) {
-                console.error("解析用户意图时出错:", error);
-                throw new Error("无法解析用户意图，请重试");
-            }
-
-            if (!parsedIntent || !parsedIntent.mainIntent || !parsedIntent.subIntents || !parsedIntent.processInference) {
-                throw new Error("用户意图分析结果格式不正确，请重试");
-            }
-
-            console.log("用户意图:", parsedIntent.processInference);
-
-            // 更新对话状态，包含全部提问意图
-            setConversations(prevConversations => {
-                const updatedConversations = [...prevConversations];
-                const currentConversation = updatedConversations[updatedConversations.length - 1];
-                const lastResult = currentConversation[currentConversation.length - 1];
-                lastResult.fullIntent = parsedIntent;
-                return updatedConversations;
-            });
-
-            // 使用默认选项或用户选择的选项
-            let searchUserChoices = userChoices || parsedIntent.subIntents
-                .filter(si => si.options && si.options.length > 0)
-                .map(si => ({
-                    intent: si.intent,
-                    choices: si.selectedOptions || si.options.slice(0, 1)
-                }));
-
-            // 生成搜索关键词
-            const searchKeywords = generateSearchKeywords(question, searchUserChoices);
-
-            console.log("生成的搜索关键词:", searchKeywords);
-
-            updateLoadingStatus('获取搜索结果');
-            console.log("开始获取搜索结果");
-            const results = await window.tiktokDownloaderService.getSearchResults(question);
-            console.log("获取搜索结果", results);
-
-            setSearchResults(results);  // 保存搜索结果
-
-            updateLoadingStatus(`找到 ${results.length} 个相关视频`);
-
-            if (results.length === 0) {
-                console.log("未找到相关视频");
-                setConversations(prevConversations => {
-                    const updatedConversations = [...prevConversations];
-                    const lastConversation = updatedConversations[updatedConversations.length - 1];
-                    lastConversation[lastConversation.length - 1] = {
-                        ...lastConversation[lastConversation.length - 1],
-                        isLoading: false,
-                        loadingStatuses: [],
-                        summary: { conclusion: '未找到相关视频', evidence: [] },
-                        relatedQuestions: []
-                    };
-                    return updatedConversations;
-                });
-                setIsLoading(false);
-                return;
-            }
-
-            // 在这里添加显示搜索结果的逻辑
-            setConversations(prevConversations => {
-                const updatedConversations = [...prevConversations];
-                const currentConversation = updatedConversations[updatedConversations.length - 1];
-                const updatedResult = {
-                    ...currentConversation[currentConversation.length - 1],
-                    searchResults: results.slice(0, 10).map(result => ({
-                        origin_cover: result.origin_cover,
-                        dynamic_cover: result.dynamic_cover,
-                        title: result.desc,
-                        author: result.nickname,
-                        likes: result.digg_count,
-                        comments: result.comment_count,
-                        shares: result.share_count,
-                        share_url: result.share_url
-                    }))
-                };
-                currentConversation[currentConversation.length - 1] = updatedResult;
-                return updatedConversations;
-            });
-
-            const VIDEOS_TO_PROCESS = 3;
-            const transcriptionPromises = results.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
-                updateLoadingStatus(`开始处理视频:${result.desc}`);
-                const audioUrl = result.music_url;
-                console.log("处理视频转录audioUrl:", audioUrl);
+            // 打印关键信息的函数
+            function printJsonData(data) {
+                console.log("响应状态码:", data.code);
+                console.log("请求路由:", data.router);
+                console.log("请求参数:");
+                console.log("  关键词:", data.params.keyword);
+                console.log("  页码:", data.params.page);
+                console.log("  排序方式:", data.params.sort);
+                console.log("  笔记类型:", data.params.noteType);
                 
-                try {
-                    // 等待转录完成
-                    const transcriptionResult = await window.openaiService.transcribeAudio(audioUrl);
-                    console.log("转录完成:", transcriptionResult);
-
-                    return {
-                        ...result,
-                        transcription: transcriptionResult.text,
-                        transcriptionParagraphs: transcriptionResult.paragraphs
-                    };
-                } catch (error) {
-                    console.error("处理视频转录失败:", error);
-                    return {
-                        ...result,
-                        transcription: "音频转换失败",
-                        transcriptionParagraphs: []
-                    };
-                }
-            });
-
-            const transcribedResults = await Promise.all(transcriptionPromises);
-
-            updateLoadingStatus('获取评论');
-            const processedVideoData = [];
-            for (const result of transcribedResults) {
-                try {
-                    const comments = await window.tiktokDownloaderService.getComments(result.share_url);
-                    processedVideoData.push({
-                        ...result,
-                        comments: comments.data || []
-                    });
-                } catch (error) {
-                    console.error("获取评论失败:", error);
-                    processedVideoData.push({
-                        ...result,
-                        comments: []
+                console.log("\n数据部分:");
+                
+                if (data.data && data.data.data && data.data.data.items) {
+                    data.data.data.items.forEach((item, index) => {
+                        if (item.note) {
+                            console.log(`\n笔记 ${index + 1}：`);
+                            console.log("  标题:", item.note.display_title);
+                            console.log("  用户昵称:", item.note.user.nickname);
+                            console.log("  封面图 URL:", item.note.cover.url_default);
+                            console.log("  点赞情况:", item.note.liked);
+                            console.log("  点赞数:", item.note.liked_count);
+                        }
+                        if (item.hot_query) {
+                            console.log(`\n热门查询 ${index + 1}：`);
+                            console.log("  标题:", item.hot_query.title);
+                            item.hot_query.queries.forEach((query) => {
+                                console.log("    查询 ID:", query.id);
+                                console.log("    查询名称:", query.name);
+                                console.log("    查询词:", query.search_word);
+                                console.log("    封面图 URL:", query.cover);
+                            });
+                        }
                     });
                 }
+                
+                console.log("\n记录时间:", data.data.recordTime);
             }
 
-            updateLoadingStatus('提取信息中');
-            const collectedArticlesAndComments = processedVideoData.slice(0, VIDEOS_TO_PROCESS).map((video, index) => {
-                const baseInfo = `
-                        文章 ${index + 1}:
-                        标题: ${video.desc}
-                        作者: ${video.nickname}
-                        点赞数: ${video.digg_count}
-                        评论数: ${video.comment_count}
-                        收藏数: ${video.collect_count}
-                        分享数: ${video.share_count}
-                        `;
+            printJsonData(results);
+            // 获取每个笔记的详细信息
+            const detailedResults = await Promise.all(results.data.data.items.slice(0, 3).map(async (note) => {
+                const noteInfo = await window.xiaohongshuService.getNoteInfo(note.note.id);
+                return { ...note, ...noteInfo };
+            }));
 
-                const transcription = video.transcriptionParagraphs.map((p) => 
-                            `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
-                        ).join('\n');
+            console.log("获取小红书笔记详情", detailedResults);
 
-                const comments = video.comments.slice(0, 3).map((comment, commentIndex) => `
-                        文章 ${index + 1} 的第 ${commentIndex + 1} 条评论:
-                        - ${comment.text}
-                        点赞数: ${comment.digg_count}
-                        回复数: ${comment.reply_comment_total}
-                        `).join('\n');
 
-                return `${baseInfo}\n${transcription}\n${comments}`;
-            }).join('\n\n');
-
-            console.log("视频和评论获取完成:", collectedArticlesAndComments);
-
-            // 使用 SEARCH_AGENT 进行预处理
-            const searchAgentResponse = await window.openaiService.chatCompletion({
-                model: selectedModel,
-                messages: [
-                    { role: "system", content: window.SEARCH_AGENT },
-                    { role: "user", content: `问题: ${question}\n\n${collectedArticlesAndComments}` }
-                ],
-            });
-
-            let searchAgentResult;
-            try {
-                searchAgentResult = JSON.parse(searchAgentResponse.choices[0].message.content);
-                console.log("检索和提取结果:", searchAgentResult);
-            } catch (error) {
-                console.error("解析预处理结果失败:", error);
-                searchAgentResult = { relevantParagraphs: [], relevantComments: [] };
-            }
-
-            // 根据用户意图预生成答案
-            const preGeneratedAnswer = await window.openaiService.chatCompletion({
-                model: selectedModel,
-                messages: [
-                    { role: "system", content: `根据用户意图${collectedArticlesAndComments}生成一个详细全面的答案。` },
-                    { role: "user", content: `问题: ${question}\n` }
-                ],
-            });
-
-            const preGeneratedAnswerText = preGeneratedAnswer.choices[0].message.content;
-
-            // 准备最终的AI输入
-            const answerAgentInput = `
-                问题: ${question}
-
-                用户意图: ${parsedIntent.processInference}
-
-                预生成答案: ${preGeneratedAnswerText}
-
-                相关段落:
-                ${searchAgentResult.relevantParagraphs.map(p => 
-                    `[indexAudio:${p.indexAudio}, start:${p.start}, end:${p.end}] ${p.text}`
-                ).join('\n')}
-
-                相关评论:
-                ${searchAgentResult.relevantComments.map(c => 
-                    `[indexAudio:${c.indexAudio}, commentIndex:${c.commentIndex}] ${c.text}`
-                ).join('\n')}
-            `;
-
-            console.log('生成答案中', answerAgentInput);
-            const response = await window.openaiService.chatCompletion({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: window.ANSWER_PROMPT },
-                    { role: "user", content: answerAgentInput }
-                ],
-            });
-
-            console.log("API响应数据:", response);
-            let answer = response.choices[0].message.content;
-            
-            console.log("AI返回的答案(Markdown格式)", answer);
-
-            // 提取相关问题并更新答案
-            const { questions: relatedQuestions, updatedAnswer } = extractRelatedQuestions(answer);
-            console.log("AI返回的相关问题", relatedQuestions);
-
-            updateLoadingStatus('处理完成');
-
-            // 在处理完所有数据后，更新最终结果
-            setConversations(prevConversations => {
-                const updatedConversations = [...prevConversations];
-                const currentConversation = updatedConversations[updatedConversations.length - 1];
-                const updatedResult = {
-                    ...currentConversation[currentConversation.length - 1],
-                    question: question,
-                    isLoading: false,
-                    loadingStatuses: [...currentConversation[currentConversation.length - 1].loadingStatuses, '处理完成'],
-                    searchedWebsites: processedVideoData.map(result => result.download_url),
-                    summary: {
-                        conclusion: updatedAnswer,
-                        evidence: searchAgentResult.relevantParagraphs.map(p => ({
-                            text: p.text,
-                            source: `视频 ${p.indexAudio + 1}`,
-                            start: p.start,
-                            end: p.end
-                        }))
-                    },
-                    relatedQuestions: relatedQuestions,
-                    isVideoSearch: true,
-                    videoData: processedVideoData,
-                    processedVideoCount: VIDEOS_TO_PROCESS,
-                    userIntent: searchAgentResult.processInference
-                };
-                currentConversation[currentConversation.length - 1] = updatedResult;
-                return updatedConversations;
-            });
         } catch (error) {
             console.error('搜索过程中错误:', error);
             setConversations(prevConversations => {
