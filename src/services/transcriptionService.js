@@ -30,54 +30,54 @@ const createAxiosInstance = (url) => {
 const transcribeAudio = async (audioUrl) => {
   const axiosInstance = createAxiosInstance(LLM_BASE_URL);
   try {
-    console.log('开始下载音频文件');
-    const audioResponse = await axiosInstance.get(audioUrl, { 
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1'
-      }
-    });
-    const audioBuffer = Buffer.from(audioResponse.data);
-    console.log('音频文件下载完成，大小:', (audioBuffer.length / 1024).toFixed(2), 'KB');
+    // console.log('开始下载音频文件');
+    // const audioResponse = await axiosInstance.get(audioUrl, { 
+    //   responseType: 'arraybuffer',
+    //   headers: {
+    //     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1'
+    //   }
+    // });
+    // const audioBuffer = Buffer.from(audioResponse.data);
+    // console.log('音频文件下载完成，大小:', (audioBuffer.length / 1024).toFixed(2), 'KB');
 
-    const formData = new FormData();
-    formData.append('file', audioBuffer, { 
-      filename: 'audio',
-      contentType: audioResponse.headers['content-type'] || 'audio/mpeg'
-    });
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'verbose_json');
+    // const formData = new FormData();
+    // formData.append('file', audioBuffer, { 
+    //   filename: 'audio',
+    //   contentType: audioResponse.headers['content-type'] || 'audio/mpeg'
+    // });
+    // formData.append('model', 'whisper-1');
+    // formData.append('response_format', 'verbose_json');
 
-    console.log('准备发送请求到 Whisper API');
-    const whisperResponse = await axiosInstance.post(`https://api.openai.com/v1/audio/transcriptions`, formData, {
-      headers: {
-        ...formData.getHeaders(),
-        'Authorization': `Bearer ${OPEN_AI_KEY}`,
-      },
-    });
+    // console.log('准备发送请求到 Whisper API');
+    // const whisperResponse = await axiosInstance.post(`https://api.openai.com/v1/audio/transcriptions`, formData, {
+    //   headers: {
+    //     ...formData.getHeaders(),
+    //     'Authorization': `Bearer ${OPEN_AI_KEY}`,
+    //   },
+    // });
 
-    console.log('收到Whisper API响应');
-    const segments = whisperResponse.data.segments.map(segment => ({
-      start: Number(segment.start.toFixed(2)),
-      end: Number(segment.end.toFixed(2)),
-      text: segment.text
-    }));
+    // console.log('收到Whisper API响应');
+    // const segments = whisperResponse.data.segments.map(segment => ({
+    //   start: Number(segment.start.toFixed(2)),
+    //   end: Number(segment.end.toFixed(2)),
+    //   text: segment.text
+    // }));
 
-    console.log(`分段数量: ${segments.length}`);
+    // console.log(`分段数量: ${segments.length}`);
 
-    const paragraphs = combineSegmentsIntoParagraphs(segments);
-    console.log(`段落数量: ${paragraphs.length}`);
+    // const paragraphs = combineSegmentsIntoParagraphs(segments);
+    // console.log(`段落数量: ${paragraphs.length}`);
 
-    // 计算音频总时长
-    const totalDuration = segments.reduce((acc, segment) => Math.max(acc, segment.end), 0);
+    // // 计算音频总时长
+    // const totalDuration = segments.reduce((acc, segment) => Math.max(acc, segment.end), 0);
     
-    // 记录Whisper使用情况
-    await recordWhisperUsage(totalDuration);
+    // // 记录Whisper使用情况
+    // await recordWhisperUsage(totalDuration);
 
-    return {
-      text: whisperResponse.data.text,
-      paragraphs: paragraphs
-    };
+    // return {
+    //   text: whisperResponse.data.text,
+    //   paragraphs: paragraphs
+    // };
     // 模拟分段输出
     const simulateSegmentedOutput = () => {
       return [
