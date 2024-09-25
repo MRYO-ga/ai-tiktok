@@ -1,4 +1,3 @@
-
 const handleSearch = async ({
     question,
     isNewQuestion = false,
@@ -22,28 +21,31 @@ const handleSearch = async ({
     setShowInitialSearch(false);
     onHistoryUpdate(prevQuestions => [...prevQuestions, question]);
 
-    window.updateConversations(lastResult => ({
-        ...lastResult,
-        question: question,
-        isLoading: true,
-        searchedWebsites: [],
-        summary: { conclusion: '', evidence: [] },
-        relatedQuestions: [],
-        isVideoSearch: isVideoSearch,
-        videoFile: uploadedVideo,
-        loadingStatuses: []
-    }));
-
-    if (isNewQuestion) {
-        console.log("创建新对话");
-        setConversations(prevConversations => [...prevConversations, []]);
-    } else {
-        console.log("向现有对话添加新结果");
-    }
+    setConversations(prevConversations => {
+        const newConversations = [...prevConversations];
+        if (isNewQuestion || newConversations.length === 0) {
+            newConversations.push([]);
+        }
+        const currentConversation = newConversations[newConversations.length - 1];
+        currentConversation.push({
+            question,
+            isLoading: true,
+            loadingStatuses: ['开始搜索'],
+            summary: { conclusion: '', evidence: [] },
+            relatedQuestions: [],
+            isVideoSearch: false,
+            videoData: [],
+            processedVideoCount: 0,
+            userIntent: ''
+        });
+        return newConversations;
+    });
 
     try {
         // 使用agent拆解用户意图
         window.updateLoadingStatus(setConversations, '分析用户意图');
+        console.log("更新加载状态：分析用户意图");
+
         const intentAnalysis = await window.openaiService.chatCompletion({
             model: selectedModel,
             messages: [
@@ -67,10 +69,9 @@ const handleSearch = async ({
         console.log("用户意图:", parsedIntent.processInference);
         
         // 更新对话状态，包含全部提问意图
-        window.updateConversations(lastResult => ({
-            ...lastResult,
+        window.updateConversations(setConversations, {
             fullIntent: parsedIntent
-        }));
+        });
 
         // 使用默认选项或用户选择的选项
         let searchUserChoices = userChoices || parsedIntent.subIntents
@@ -109,7 +110,6 @@ const handleSearch = async ({
         }
 
         // 处理抖音搜索结果
-        window.updateLoadingStatus(setConversations, '获取搜索结果-抖音');
         if (resultsVideos && resultsVideos.length > 0) {
             setSearchResults(resultsVideos);
             window.updateLoadingStatus(setConversations, `找到 ${resultsVideos.length} 个相关视频`);
@@ -138,18 +138,16 @@ const handleSearch = async ({
 
         if (combinedResults.length === 0) {
             console.log("未找到相关内容");
-            window.updateConversations(lastResult => ({
-                ...lastResult,
+            window.updateConversations(setConversations, {
                 isLoading: false,
-                loadingStatuses: [],
+                loadingStatuses: ['处理完成'],
                 summary: { conclusion: '未找到相关内容', evidence: [] },
                 relatedQuestions: []
-            }));
+            });
             return;
         }
 
-        window.updateConversations(lastResult => ({
-            ...lastResult,
+        window.updateConversations(setConversations, {
             searchResults: combinedResults.map(result => {
                 if (result.noteInfo) {  // 小红书结果
                     return {
@@ -173,7 +171,7 @@ const handleSearch = async ({
                     };
                 }
             })
-        }));
+        });
 
         const VIDEOS_TO_PROCESS = 1;
         const transcriptionPromises = resultsVideos.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
@@ -246,6 +244,7 @@ const handleSearch = async ({
         });
         let searchAgentResult;
         try {
+            console.log("原始 searchAgentResponse:", searchAgentResponse);
             searchAgentResult = JSON.parse(searchAgentResponse.choices[0].message.content);
             console.log("检索和提取结果:", searchAgentResult);
         } catch (error) {
@@ -295,41 +294,36 @@ const handleSearch = async ({
         console.log("AI返回的相关问题", relatedQuestions);
         window.updateLoadingStatus(setConversations, '处理完成');
         // 在处理完所有数据后，更新最终结果
-        updateConversations(lastResult => {
-            const currentLoadingStatuses = Array.isArray(lastResult.loadingStatuses) ? lastResult.loadingStatuses : [];
-            return {
-                ...lastResult,
-                question: question,
-                isLoading: false,
-                loadingStatuses: [...currentLoadingStatuses, '处理完成'],
-                searchedWebsites: processedVideoData.map(result => result.download_url),
-                summary: {
-                    conclusion: updatedAnswer,
-                    evidence: searchAgentResult.relevantParagraphs.map(p => ({
-                        text: p.text,
-                        source: `视频 ${p.indexAudio + 1}`,
-                        start: p.start,
-                        end: p.end
-                    }))
-                },
-                relatedQuestions: relatedQuestions,
-                isVideoSearch: true,
-                videoData: processedVideoData,
-                processedVideoCount: VIDEOS_TO_PROCESS,
-                userIntent: searchAgentResult.processInference
-            };
-        });
+        window.updateConversations(setConversations, prevResult => ({
+            ...prevResult,
+            question: question,
+            isLoading: false,
+            loadingStatuses: [...(prevResult.loadingStatuses || []), '处理完成'],  // 保留之前的状态
+            searchedWebsites: processedVideoData.map(result => result.download_url),
+            summary: {
+                conclusion: updatedAnswer,
+                evidence: searchAgentResult.relevantParagraphs.map(p => ({
+                    text: p.text,
+                    source: `视频 ${p.indexAudio + 1}`,
+                    start: p.start,
+                    end: p.end
+                }))
+            },
+            relatedQuestions: relatedQuestions,
+            isVideoSearch: true,
+            videoData: processedVideoData,
+            processedVideoCount: VIDEOS_TO_PROCESS,
+            userIntent: searchAgentResult.processInference,
+            isAllCompleted: true
+        }));
     } catch (error) {
         console.error('搜索结果处理失败:', error);
-        window.updateConversations(lastResult => {
-            const currentLoadingStatuses = Array.isArray(lastResult.loadingStatuses) ? lastResult.loadingStatuses : [];
-            return {
-                ...lastResult,
-                isLoading: false,
-                loadingStatuses: [...currentLoadingStatuses, '处理出错'],
-                summary: { conclusion: '搜索过程中出现错误，请稍后重试。', evidence: [] },
-                relatedQuestions: []
-            };
+        window.updateLoadingStatus(setConversations, '处理出错');
+        window.updateConversations(setConversations, {
+            isLoading: false,
+            loadingStatuses: ['处理出错'],
+            summary: { conclusion: '搜索过程中出现错误，请稍后重试。', evidence: [] },
+            relatedQuestions: []
         });
     } finally {
         setIsLoading(false);

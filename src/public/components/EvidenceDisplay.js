@@ -1,7 +1,9 @@
 const EvidenceDisplay = ({ conversations, selectedEvidence, transcriptionParagraphs, renderEvidenceDetails, renderTranscriptionWithTimestamps, videoData }) => {
     const [showParagraphs, setShowParagraphs] = useState({});
-    const latestConversation = conversations[conversations.length - 1];
-    const latestResult = latestConversation[latestConversation.length - 1];
+
+    // 添加防御性检查
+    const latestConversation = conversations && conversations.length > 0 ? conversations[conversations.length - 1] : [];
+    const latestResult = latestConversation && latestConversation.length > 0 ? latestConversation[latestConversation.length - 1] : null;
 
     const renderVideoDetails = (video) => {
         const getSummary = (text) => {
@@ -105,12 +107,16 @@ const EvidenceDisplay = ({ conversations, selectedEvidence, transcriptionParagra
                     </div>
                 )
             ) : (
-                selectedEvidence && (
+                selectedEvidence && selectedEvidence.length > 0 ? (
                     <div>
                         <h3 className="text-2xl font-bold text-gray-800 mb-4">依据详情</h3>
                         <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
                             {selectedEvidence.map((evidence, index) => renderEvidenceDetails(evidence, index))}
                         </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center h-64">
+                        <p className="text-gray-500 text-lg">没有选中的依据</p>
                     </div>
                 )
             )}

@@ -1,10 +1,20 @@
 const updateLoadingStatus = (setConversations, status) => {
     setConversations(prevConversations => {
-        const updatedConversations = [...prevConversations];
-        const currentConversation = updatedConversations[updatedConversations.length - 1];
-        if (currentConversation) {
-            currentConversation.loadingStatuses = [...(currentConversation.loadingStatuses || []), status];
-        }
+        const updatedConversations = prevConversations.map(conversation => {
+            if (conversation.length === 0) {
+                return [{
+                    loadingStatuses: [status],
+                    isLoading: true
+                }];
+            } else {
+                return conversation.map(result => ({
+                    ...result,
+                    loadingStatuses: [...(result.loadingStatuses || []), status],
+                    isLoading: true
+                }));
+            }
+        });
+        console.log("Updated conversations:", updatedConversations);
         return updatedConversations;
     });
 };

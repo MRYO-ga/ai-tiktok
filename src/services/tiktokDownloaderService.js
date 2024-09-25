@@ -228,7 +228,7 @@ const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '0
 
         // 使用模拟数据
         const simulatedResults = simulateSearchResults();
-        console.log("模拟搜索结果:", simulatedResults);
+        // console.log("模拟搜索结果:", simulatedResults);
         return simulatedResults;
     } catch (error) {
         console.error('Error fetching search results:', error);
