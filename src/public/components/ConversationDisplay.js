@@ -75,7 +75,7 @@ const ConversationDisplay = ({
                                                 className="w-full h-32 object-cover" 
                                                 onError={(e) => {
                                                     e.target.onerror = null; 
-                                                    e.target.src = 'path/to/fallback/image.jpg'
+                                                    // e.target.src = 'path/to/fallback/image.jpg'
                                                 }}
                                             />
                                             <div className="p-2">
@@ -83,7 +83,7 @@ const ConversationDisplay = ({
                                                 <p className="text-xs text-gray-600 truncate">作者: {video.author}</p>
                                                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                                                     <span title={`${video.likes} 赞`}>👍 {formatNumber(video.likes)}</span>
-                                                    <span title={`${video.comments} 评论`}>💬 {formatNumber(video.comments)}</span>
+                                                    <span title={`${video.comments?.length} 评论`}>💬 {formatNumber(video.comments?.length)}</span>
                                                     <span title={`${video.shares} 分享`}>🔗 {formatNumber(video.shares)}</span>
                                                 </div>
                                             </div>

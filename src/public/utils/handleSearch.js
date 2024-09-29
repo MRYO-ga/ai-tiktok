@@ -91,7 +91,7 @@ const handleSearch = async ({
         try {
             resultsNotes = await window.searchNotesWithRetry(question);
             if (resultsNotes && resultsNotes.data) {
-                window.printJsonData(resultsNotes.data);
+                // window.printJsonData(resultsNotes);
             } else {
                 console.log("小红书搜索结果格式不正确:", resultsNotes);
             }
@@ -109,22 +109,51 @@ const handleSearch = async ({
             resultsVideos = [];
         }
 
+        const VIDEOS_TO_PROCESS = 0; // 设置要处理的视频数量
         // 处理抖音搜索结果
+        let processedVideoData = [];
         if (resultsVideos && resultsVideos.length > 0) {
             setSearchResults(resultsVideos);
             window.updateLoadingStatus(setConversations, `找到 ${resultsVideos.length} 个相关视频`);
+            
+            
+            for (let i = 0; i < Math.min(VIDEOS_TO_PROCESS, resultsVideos.length); i++) {
+                const video = resultsVideos[i];
+                window.updateLoadingStatus(setConversations, `处理视频 ${i + 1}: ${video.desc}`);
+                
+                try {
+                    const transcribedVideo = await window.transcribeVideo(video);
+                    const tiktokComments = await window.tiktokDownloaderService.getComments(video.share_url);
+                    
+                    processedVideoData.push({
+                        ...transcribedVideo,
+                        comments: {
+                            tiktok: Array.isArray(tiktokComments.data) ? tiktokComments.data : [],
+                            xiaohongshu: []
+                        }
+                    });
+                } catch (error) {
+                    console.error(`处理视频 ${i + 1} 失败:`, error);
+                }
+            }
         }
+
+        console.log("处理后的视频数据:", processedVideoData);
 
         // 处理小红书搜索结果
         let xiaohongshuResults = [];
-        const NOTES_TO_PROCESS = 1;
+        const NOTES_TO_PROCESS = 5;
         if (resultsNotes && resultsNotes.data && resultsNotes.data.data && Array.isArray(resultsNotes.data.data.items) && resultsNotes.data.data.items.length > 0) {
             window.updateLoadingStatus(setConversations, `找到 ${resultsNotes.data.data.items.length} 个相关笔记`);
             xiaohongshuResults = await Promise.all(resultsNotes.data.data.items.slice(0, NOTES_TO_PROCESS).map(async (item) => {
                 try {
-                    const noteInfo = await getNoteInfoAndComments(item.note.id);
-                    console.log("所有评论", noteInfo.comments);
-                    return { ...item, noteInfo };
+                    if (item && item.note && item.note.id) {
+                        const noteInfo = await getNoteInfoAndComments(item.note.id);
+                        return { ...item, noteInfo };
+                    } else {
+                        console.error('笔记项目结构不正确:', item);
+                        return item;
+                    }
                 } catch (error) {
                     console.error('获取笔记评论失败:', error);
                     window.handleErrorResponse(error);
@@ -134,106 +163,94 @@ const handleSearch = async ({
         }
 
         // 合并搜索结果
-        const combinedResults = [...xiaohongshuResults, ...resultsVideos];
+        const combinedResults = [...xiaohongshuResults, ...processedVideoData];
 
-        if (combinedResults.length === 0) {
-            console.log("未找到相关内容");
-            window.updateConversations(setConversations, {
-                isLoading: false,
-                loadingStatuses: ['处理完成'],
-                summary: { conclusion: '未找到相关内容', evidence: [] },
-                relatedQuestions: []
-            });
+        console.log("合并后的搜索结果:", combinedResults);
+
+        if (!Array.isArray(combinedResults) || combinedResults.length === 0) {
+            console.warn("搜索结果为空或不是数组");
+            // 处理空结果的情况
             return;
         }
 
         window.updateConversations(setConversations, {
             searchResults: combinedResults.map(result => {
-                if (result.noteInfo) {  // 小红书结果
+                if (!result) {
+                    console.warn("发现无效的搜索结果项");
+                    return null;
+                }
+                if (result.note) {  // 小红书结果
                     return {
-                        title: result.noteInfo.title,
-                        author: result.noteInfo.user.nickname,
-                        likes: result.noteInfo.liked_count,
-                        comments: result.noteInfo.comments.length,
-                        shares: 0,
-                        share_url: ''
+                        title: result.note?.display_title || '无标题',
+                        author: result.note?.user?.nickname || '未知作者',
+                        likes: result.note?.liked_count || 0,
+                        comments: result.noteInfo?.comments || null,
+                        shares: result.noteInfo?.data?.data?.data?.[0]?.note_list?.[0]?.share_count || 0,
+                        share_url: result.noteInfo?.data?.data?.data?.[0]?.note_list?.[0]?.share_info?.link || '',
+                        dynamic_cover: result.note?.cover?.url_default || null,
+                        origin_cover: result.note?.cover?.url_default || null
                     };
                 } else {  // 抖音结果
                     return {
-                        origin_cover: result.origin_cover,
-                        dynamic_cover: result.dynamic_cover,
-                        title: result.desc,
-                        author: result.nickname,
-                        likes: result.digg_count,
-                        comments: result.comment_count,
-                        shares: result.share_count,
-                        share_url: result.share_url
+                        origin_cover: result.origin_cover || null,
+                        dynamic_cover: result.dynamic_cover || null,
+                        title: result.desc || '无标题',
+                        author: result?.nickname || '未知作者',
+                        likes: result.digg_count || 0,
+                        comments: result.comment_count || 0,
+                        shares: result.share_count || 0,
+                        share_url: result.share_url || ''
                     };
                 }
-            })
+            }).filter(Boolean)  // 过滤掉可能的 null 或 undefined 结果
         });
+        console.log("combinedResults", combinedResults);
 
-        const VIDEOS_TO_PROCESS = 1;
-        const transcriptionPromises = resultsVideos.slice(0, VIDEOS_TO_PROCESS).map(async (result, index) => {
-            window.updateLoadingStatus(setConversations, `开始处理视频:${result.desc}`);
-            return window.transcribeVideo(result);
-        });
-        const transcribedResults = await Promise.all(transcriptionPromises);
-        window.updateLoadingStatus(setConversations, '获取评论');
-        const processedVideoData = [];
-        for (const result of transcribedResults) {
-            try {
-                const tiktokComments = await window.tiktokDownloaderService.getComments(result.share_url);
-                processedVideoData.push({
-                    ...result,
-                    comments: {
-                        tiktok: Array.isArray(tiktokComments.data) ? tiktokComments.data : [],
-                        xiaohongshu: []
-                    }
-                });
-            } catch (error) {
-                console.error("获取评论失败:", error);
-                processedVideoData.push({
-                    ...result,
-                    comments: {
-                        tiktok: [],
-                        xiaohongshu: []
-                    }
-                });
-            }
-        }
-        console.log("processedVideoData", processedVideoData);
-
-        window.updateLoadingStatus(setConversations, '提取信息中');
-        const collectedArticlesAndComments = processedVideoData.slice(0, VIDEOS_TO_PROCESS).map((video, index) => {
-            const baseInfo = `
-                文章 ${index + 1}:
-                标题: ${video.desc}
-                作者: ${video.nickname}
-                点赞数: ${video.digg_count}
-                评论数: ${video.comment_count}
-                收藏数: ${video.collect_count}
-                分享数: ${video.share_count}
-            `;
-            const transcription = video.transcriptionParagraphs.map((p) => 
-                `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
-            ).join('\n');
-            const tiktokComments = video.comments.tiktok ? video.comments.tiktok.slice(0, 3).map((comment, commentIndex) => `
-                文章 ${index + 1} 的第 ${commentIndex + 1} 条抖音评论:
-                - ${comment.text}
-                点赞数: ${comment.digg_count}
-                回复数: ${comment.reply_comment_total}
-            `).join('\n') : '';
-            const xiaohongshuComments = video.comments.xiaohongshu ? video.comments.xiaohongshu.slice(0, 3).map((comment, commentIndex) => `
+        // 准备收集的文章和评论数据
+        const collectedArticlesAndComments = combinedResults.map((result, index) => {
+            if (result.note) {  // 小红书结果
+                const baseInfo = `
+                    文章 ${index + 1}:
+                    标题: ${result.note.display_title}
+                    作者: ${result.note.user.nickname}
+                    点赞数: ${result.note.liked_count}
+                    评论数: ${result.noteInfo?.comments?.length || 0}
+                    收藏数: ${result.note.collect_count || 0}
+                    分享数: ${result.noteInfo?.data?.data?.data?.[0]?.note_list?.[0]?.share_count || 0}
+                `;
+                const content = result.noteInfo?.data?.data?.data?.[0]?.note_list?.[0]?.desc || '';
+                const comments = result.noteInfo?.comments?.slice(0, result.noteInfo?.comments?.length).map((comment, commentIndex) => `
                     文章 ${index + 1} 的第 ${commentIndex + 1} 条小红书评论:
-                    - ${comment.text}
+                    - ${comment.content}
                     点赞数: ${comment.like_count}
-                    回复数: ${comment.reply_count}
-                `).join('\n') : '';
-            return `${baseInfo}\n${transcription}\n${tiktokComments}\n${xiaohongshuComments ? xiaohongshuComments : ''}`;
+                    回复数: ${comment.sub_comment_count}
+                `).join('\n') || '';
+                return `${baseInfo}\n${content}\n${comments}`;
+            } else {  // 抖音结果
+                const baseInfo = `
+                    文章 ${index + 1}:
+                    标题: ${result.desc}
+                    作者: ${result.nickname}
+                    点赞数: ${result.digg_count}
+                    评论数: ${result.comment_count}
+                    收藏数: ${result.collect_count || 0}
+                    分享数: ${result.share_count}
+                `;
+                const transcription = result.transcriptionParagraphs.map((p) => 
+                    `[indexAudio:${index}, start:${p.start}, end:${p.end}] ${p.text}`
+                ).join('\n');
+                const comments = result.comments.tiktok.slice(0, 3).map((comment, commentIndex) => `
+                    文章 ${index + 1} 的第 ${commentIndex + 1} 条抖音评论:
+                    - ${comment.text}
+                    点赞数: ${comment.digg_count}
+                    回复数: ${comment.reply_comment_total}
+                `).join('\n');
+                return `${baseInfo}\n${transcription}\n${comments}`;
+            }
         }).join('\n\n');
-        console.log("视频和评论获取完成:", collectedArticlesAndComments);
-        
+
+        console.log("收集的文章和评论数据:", collectedArticlesAndComments);
+
         // 使用 SEARCH_AGENT 进行预处理
         const searchAgentResponse = await window.openaiService.chatCompletion({
             model: selectedModel,
@@ -279,7 +296,7 @@ const handleSearch = async ({
         `;
         console.log('生成答案中', answerAgentInput);
         const response = await window.openaiService.chatCompletion({
-            model: "gpt-4o",
+            model: selectedModel,
             messages: [
                 { role: "system", content: window.ANSWER_PROMPT },
                 { role: "user", content: answerAgentInput }

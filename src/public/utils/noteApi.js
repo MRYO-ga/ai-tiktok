@@ -1,5 +1,5 @@
 
-const searchNotesWithRetry = async (keyword, page = 1, sort = 'default', noteType = 'all') => {
+const searchNotesWithRetry = async (keyword, page = 1, sort = 'general', noteType = '_0') => {
     try {
         return await window.xiaohongshuService.searchNotes(keyword, page, sort, noteType);
     } catch (error) {
@@ -35,44 +35,41 @@ const getNoteCommentsWithRetry = async (noteId, lastCursor = '') => {
     }
 };
 
-const getNoteInfoAndComments = async (item) => {
-    if (item.note) {
-        let noteInfo;
-        let comments;
-        try {
-            // 获取笔记详情
-            noteInfo = await getNoteInfoWithRetry(item.note.id);
-            console.log("作品详情", noteInfo);
+const getNoteInfoAndComments = async (noteId) => {
+    let noteInfo;
+    let comments;
+    try {
+        // 获取笔记详情
+        noteInfo = await getNoteInfoWithRetry(noteId);
+        // console.log("作品详情", noteInfo);
 
-            // 获取评论
-            let allComments = [];
-            let lastCursor = '';
-            const MAX_PAGES = 3; // 设置您想要获取的最大页数
+        // 获取评论
+        let allComments = [];
+        let lastCursor = '';
+        const MAX_PAGES = 3; // 设置您想要获取的最大页数
 
-            for (let i = 0; i < MAX_PAGES; i++) {
-                const commentsPage = await getNoteCommentsWithRetry(item.note.id, lastCursor);
-                if (commentsPage && commentsPage.data && commentsPage.data.data) {
-                    allComments = allComments.concat(commentsPage.data.data.comments);
-                    lastCursor = commentsPage.data.data.cursor;
-                    if (i === 0) {
-                        // 只为第一页评论调用提取和打印函数
-                        extractAndPrintComments(commentsPage.data);
-                    }
-                    if (!lastCursor) break; // 如果没有更多评论，退出循环
-                } else {
-                    break; // 如果获取评论失败，退出循环
+        for (let i = 0; i < MAX_PAGES; i++) {
+            const commentsPage = await getNoteCommentsWithRetry(noteId, lastCursor);
+            if (commentsPage && commentsPage.data && commentsPage.data.data) {
+                allComments = allComments.concat(commentsPage.data.data.comments);
+                lastCursor = commentsPage.data.data.cursor;
+                if (i === 0) {
+                    // 只为第一页评论调用提取和打印函数
+                    // extractAndPrintComments(commentsPage.data);
                 }
+                if (!lastCursor) break; // 如果没有更多评论，退出循环
+            } else {
+                break; // 如果获取评论失败，退出循环
             }
-
-            console.log("所有评论", allComments);
-            noteInfo.comments = allComments;
-        } catch (error) {
-            console.error('获取笔记详情或评论时出错:', error);
-            handleErrorResponse(error);
         }
-        return { ...item, noteInfo };
+
+        // console.log("所有评论", allComments);
+        noteInfo.comments = allComments;
+    } catch (error) {
+        console.error('获取笔记详情或评论时出错:', error);
+        handleErrorResponse(error);
     }
-    return item;
+    return noteInfo;
 };
 
 // 打印关键信息的函数

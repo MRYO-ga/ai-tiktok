@@ -195,7 +195,6 @@ window.xiaohongshuService = {
     },
     getNoteInfo: async (noteId) => {
         try {
-            console.log("获取小红书笔记详情", noteId);
             const response = await fetch(`/api/get_note_info`, {
                 method: 'POST',
                 headers: {
@@ -216,7 +215,6 @@ window.xiaohongshuService = {
     },
     getNoteComments: async (noteId, lastCursor = '') => {
         try {
-            console.log("获取小红书笔记评论", noteId);
             const response = await fetch(`/api/get_note_comments`, {
                 method: 'POST',
                 headers: {

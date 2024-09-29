@@ -2,7 +2,7 @@ const React = window.React;
 const { useState, useEffect, useRef } = React;
 
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
-    const [input, setInput] = React.useState('悉尼旅游攻略');  // 设置默认值
+    const [input, setInput] = React.useState('悉尼旅游租车');  // 设置默认值
     const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
     const models = ['gpt-4o-mini', 'gpt-4', 'gpt-4o', 'gpt-3.5-turbo'];

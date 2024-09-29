@@ -7,7 +7,7 @@ router.post('/', async (req, res) => {
     const result = await chatCompletion(req.body);
     res.json(result);
   } catch (error) {
-    res.status(error.response.status || 500).json({ error: 'An error occurred during chat completion' });
+    res.status(error.response?.status || 500).json({ error: 'An error occurred during chat completion' });
   }
 });
 
