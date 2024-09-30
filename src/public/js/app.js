@@ -10,11 +10,23 @@ const App = () => {
     const [currentQuestion, setCurrentQuestion] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [username, setUsername] = useState('');
 
     useEffect(() => {
         document.body.className = theme;
         localStorage.setItem('theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            // 这里可以添加一个验证 token 的 API 调用
+            setIsLoggedIn(true);
+            // 假设我们在 token 中存储了用户名,实际中可能需要解码 JWT
+            setUsername(localStorage.getItem('username') || '用户');
+        }
+    }, []);
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -53,6 +65,10 @@ const App = () => {
                         onHistoryQuestionClick={handleHistoryQuestionClick}
                         theme={theme}
                         toggleTheme={toggleTheme}
+                        isLoggedIn={isLoggedIn}
+                        setIsLoggedIn={setIsLoggedIn}
+                        username={username}
+                        setUsername={setUsername}
                     />
                 )}
                 <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>

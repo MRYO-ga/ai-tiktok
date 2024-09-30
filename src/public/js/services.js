@@ -234,3 +234,32 @@ window.xiaohongshuService = {
         }
     }
 };
+
+// 新增支付 API 函数
+window.paymentApi = {
+    createOrder: async (plan, method, isYearly) => {
+        try {
+            const response = await fetch('/api/create-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ plan, method, isYearly }),
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Create order error:', error);
+            throw error;
+        }
+    },
+
+    checkPaymentStatus: async (orderId) => {
+        try {
+            const response = await fetch(`/api/check-payment/${orderId}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Check payment status error:', error);
+            throw error;
+        }
+    },
+};

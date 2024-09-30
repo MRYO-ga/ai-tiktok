@@ -43,8 +43,8 @@
     <script type="text/babel" src="/utils/updateConversations.js"></script>
     <script type="text/babel" src="/utils/updateLoadingStatus.js"></script>
 
-    <!-- 在其他组件脚本之后添加 -->
-    <script type="text/babel" src="/components/AnnotatedChatMessage.js"></script>
+    <!-- 在其他组件脚本之后,主应用脚本之前添加 -->
+    <script type="text/babel" src="/components/LoginComponent.js"></script>
     
     <!-- 添加新的页面组件 -->
     <script type="text/babel" src="/components/HomePage.js"></script>
@@ -54,5 +54,19 @@
     
     <!-- 最后加载主应用脚本 -->
     <script type="text/babel" src="/js/app.js"></script>
+    
+    <!-- 在左侧栏的适当位置添加以下代码 -->
+    <div id="loginSection">
+      <button id="loginBtn">登录</button>
+      <div id="loginForm" style="display: none;">
+        <input type="text" id="username" placeholder="用户名">
+        <input type="password" id="password" placeholder="密码">
+        <button id="submitLogin">提交</button>
+      </div>
+      <p id="loginMessage"></p>
+    </div>
+    
+    <!-- 在 </body> 标签前添加以下行 -->
+    <!-- <script src="/js/login.js"></script> -->
 </body>
 </html>

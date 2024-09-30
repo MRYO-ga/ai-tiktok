@@ -8,6 +8,7 @@ const transcribeRoutes = require('./routes/transcribe');
 const xiaohongshuRoutes = require('./routes/xiaohongshu');
 const chatRoutes = require('./routes/chat');
 const chatRouter = require('./routes/chat');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
@@ -26,11 +27,12 @@ app.get('/search', (req, res) => {
 
 // API 路由
 app.use('/api', tiktokRoutes);
-
 app.use('/api', transcribeRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/chat', chatRouter);
 app.use('/api', xiaohongshuRoutes);
+app.use('/api/auth', authRoutes); // 添加认证路由
+
 // 根路由处理
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

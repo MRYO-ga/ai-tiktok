@@ -83,20 +83,6 @@ const PricingPage = () => {
     setSelectedPlan(planName);
   };
 
-  // 模拟支付 API 调用
-  const simulatePaymentAPI = (planName, method, isYearly) => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // 模拟 80% 的成功率
-        if (Math.random() < 0.8) {
-          resolve({ success: true, message: "支付成功" });
-        } else {
-          reject({ success: false, message: "支付失败，请稍后重试" });
-        }
-      }, 2000); // 模拟 2 秒的网络延迟
-    });
-  };
-
   const handlePayment = async () => {
     if (!selectedPlan) {
       alert('请先选择一个计划');
@@ -110,11 +96,17 @@ const PricingPage = () => {
     setIsProcessing(true);
 
     try {
-      const result = await simulatePaymentAPI(selectedPlan, paymentMethod, isYearly);
-      alert(result.message);
-      // 这里可以添加成功后的逻辑，比如更新用户状态或重定向到成功页面
+      const order = await window.paymentApi.createOrder(selectedPlan, paymentMethod, isYearly);
+      if (order.success) {
+        // 这里可以根据需要处理订单创建成功的逻辑
+        // 例如，重定向到支付页面或显示二维码
+        window.location.href = order.paymentUrl;
+      } else {
+        alert('创建订单失败，请稍后重试');
+      }
     } catch (error) {
-      alert(error.message);
+      console.error('Payment error:', error);
+      alert('支付过程中发生错误，请稍后重试');
     } finally {
       setIsProcessing(false);
     }

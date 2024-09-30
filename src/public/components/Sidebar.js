@@ -1,4 +1,4 @@
-const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHistoryQuestionClick, theme, toggleTheme }) => {
+const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHistoryQuestionClick, theme, toggleTheme, children }) => {
     const [activeSection, setActiveSection] = React.useState('history');
     const [searchTerm, setSearchTerm] = React.useState('');
     const [favorites, setFavorites] = React.useState(() => {
@@ -10,6 +10,8 @@ const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHis
         const savedTags = localStorage.getItem('tags');
         return savedTags ? JSON.parse(savedTags) : {};
     });
+    const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+    const [username, setUsername] = React.useState('');
 
     React.useEffect(() => {
         localStorage.setItem('favorites', JSON.stringify(favorites));
@@ -214,6 +216,18 @@ const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHis
                         </div>
                     )}
                 </div>
+                {/* 在设置按钮之后,添加 LoginComponent */}
+                {isOpen && (
+                    <LoginComponent 
+                        isLoggedIn={isLoggedIn} 
+                        setIsLoggedIn={setIsLoggedIn}
+                        username={username}
+                        setUsername={setUsername}
+                    />
+                )}
+                
+                {/* 保留原有的 children 渲染 */}
+                {children}
             </div>
         </div>
     );
