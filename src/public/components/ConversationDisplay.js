@@ -12,12 +12,15 @@ const LoadingIndicator = () => (
 
 // 添加一个格式化数字的函数
 const formatNumber = (num) => {
+    if (num === undefined || num === null) {
+        return '0'; // 或者返回其他默认值
+    }
     if (num >= 1000000) {
         return (num / 1000000).toFixed(1) + 'M';
     } else if (num >= 1000) {
         return (num / 1000).toFixed(1) + 'K';
     }
-    return num.toString();
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
 const ConversationDisplay = ({ 

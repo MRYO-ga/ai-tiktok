@@ -18,6 +18,12 @@ app.use(express.urlencoded({ extended: true }));
 // 静态文件服务
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 处理 /search 路由
+app.get('/search', (req, res) => {
+    // 这里应该是处理搜索请求的逻辑
+    res.json({ message: "Search endpoint reached" });
+});
+
 // API 路由
 app.use('/api', tiktokRoutes);
 
