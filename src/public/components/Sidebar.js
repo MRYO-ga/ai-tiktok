@@ -19,12 +19,10 @@ const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHis
     }, [favorites, tags]);
 
     const filteredQuestions = React.useMemo(() => {
-        const questionsToFilter = activeSection === 'history' ? historyQuestions : favorites;
-        return questionsToFilter.filter(question =>
-            question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (tags[question] && tags[question].some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
+        return historyQuestions.filter(question => 
+            typeof question === 'string' && question.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [activeSection, historyQuestions, favorites, searchTerm, tags]);
+    }, [historyQuestions, searchTerm]);
 
     const toggleFavorite = (question) => {
         setFavorites(prevFavorites => 
@@ -84,22 +82,6 @@ const Sidebar = ({ isOpen, toggleSidebar, onNewQuestion, historyQuestions, onHis
                     </button>
                 </div>
                 <nav className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-blue-200">
-                    {isOpen && (
-                        <div className="p-4">
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    placeholder="搜索问题或标签..."
-                                    className={`w-full px-4 py-2 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 pr-10`}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-                        </div>
-                    )}
                     <div className={`flex justify-around my-4 ${isOpen ? 'block' : 'hidden'}`}>
                         <button
                             onClick={() => setActiveSection('history')}

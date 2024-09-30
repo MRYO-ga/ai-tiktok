@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="/css/styles.css">
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
     <script src="/utils/constants.js"></script>
+    <!-- 在 head 标签中添加 -->
+    <script>
+        console.warn = function() {};  // 临时禁用 console.warn
+    </script>
 </head>
 <body>
     <div id="root" class="flex h-screen"></div>
@@ -43,7 +47,10 @@
     <script type="text/babel" src="/utils/updateConversations.js"></script>
     <script type="text/babel" src="/utils/updateLoadingStatus.js"></script>
 
-    <!-- 在其他组件脚本之后,主应用脚本之前添加 -->
+    <!-- 在其他组件脚本之后添加 -->
+    <script type="text/babel" src="/components/AnnotatedChatMessage.js"></script>
+    
+    <!-- 在其他组件脚本之后添加 -->
     <script type="text/babel" src="/components/LoginComponent.js"></script>
     
     <!-- 添加新的页面组件 -->

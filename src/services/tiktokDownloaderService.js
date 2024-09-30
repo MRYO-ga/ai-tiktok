@@ -65,87 +65,87 @@ const getUserData = async (username) => {
 // 采集搜索结果数据 (抖音)
 const getSearchResults = async (keyword, type = '0', pages = '1', sort_type = '0', publish_time = '0') => {
     try {
-        // const response = await axios.post(`${TIK_TOK_DOWNLOADER_API_URL}/search/`, {
-        //     keyword,
-        //     type,
-        //     pages,
-        //     sort_type,
-        //     publish_time
-        // });
-        // // 检查响应数据是否存在且包含data属性
-        // if (!response.data || !response.data.data) {
-        //     console.error('搜索结果数据格式不正确');
-        //     return [];
-        // }
-        // let results = response.data.data;
+        const response = await axios.post(`${TIK_TOK_DOWNLOADER_API_URL}/search/`, {
+            keyword,
+            type,
+            pages,
+            sort_type,
+            publish_time
+        });
+        // 检查响应数据是否存在且包含data属性
+        if (!response.data || !response.data.data) {
+            console.error('搜索结果数据格式不正确');
+            return [];
+        }
+        let results = response.data.data;
         
-        // // 根据不同的排序类型进行排序
-        // switch(sort_type) {
-        //     case '1': // 按点赞数排序
-        //         results.sort((a, b) => b.digg_count - a.digg_count);
-        //         break;
-        //     case '2': // 按评论数排序
-        //         results.sort((a, b) => b.comment_count - a.comment_count);
-        //         break;
-        //     case '3': // 按收藏数排序
-        //         results.sort((a, b) => b.collect_count - a.collect_count);
-        //         break;
-        //     case '4': // 按分享数排序
-        //         results.sort((a, b) => b.share_count - a.share_count);
-        //         break;
-        //     case '5': // 按发布时间排序（假设create_time是时间戳）
-        //         results.sort((a, b) => b.create_time - a.create_time);
-        //         break;
-        //     default:
-        //         // 默认不排序
-        //         break;
-        // }
-        // if (response.data && response.data.data && Array.isArray(response.data.data)) {
-        //     return response.data.data
-        //         .filter(item => {
-        //             // 过滤掉时长为0或大于6分钟的视频
-        //             const durationInSeconds = parseDuration(item.duration);
-        //             return durationInSeconds > 60 && durationInSeconds <= 360; 
-        //         })
-        //         .map(item => ({
-        //             type: item.type || '',
-        //             collection_time: new Date().toISOString(), // 当前时间作为采集时间
-        //             uid: item.uid || '',
-        //             sec_uid: item.sec_uid || '',
-        //             unique_id: item.unique_id || '',
-        //             short_id: item.short_id || '',
-        //             id: item.id || '',
-        //             desc: item.desc || '',
-        //             text_extra: item.text_extra || '',
-        //             duration: item.duration || '',
-        //             ratio: item.ratio || '',
-        //             height: item.height || 0,
-        //             width: item.width || 0,
-        //             share_url: item.share_url || '',
-        //             create_time: item.create_time || '',
-        //             uri: item.uri || '',
-        //             nickname: item.nickname || '',
-        //             user_age: item.user_age || 0,
-        //             signature: item.signature || '',
-        //             downloads: item.downloads || '',
-        //             music_author: item.music_author || '',
-        //             music_title: item.music_title || '',
-        //             music_url: item.music_url || '',
-        //             origin_cover: item.origin_cover || '',
-        //             dynamic_cover: item.dynamic_cover || '',
-        //             tag_1: item.tag_1 || '',
-        //             tag_2: item.tag_2 || '',
-        //             tag_3: item.tag_3 || '',
-        //             digg_count: item.digg_count || 0,
-        //             comment_count: item.comment_count || 0,
-        //             collect_count: item.collect_count || 0,
-        //             share_count: item.share_count || 0,
-        //             extra: item.extra || ''
-        //         }));
-        // } else {
-        //     console.error('意外的响应格式:', response.data);
-        //     return [];
-        // }
+        // 根据不同的排序类型进行排序
+        switch(sort_type) {
+            case '1': // 按点赞数排序
+                results.sort((a, b) => b.digg_count - a.digg_count);
+                break;
+            case '2': // 按评论数排序
+                results.sort((a, b) => b.comment_count - a.comment_count);
+                break;
+            case '3': // 按收藏数排序
+                results.sort((a, b) => b.collect_count - a.collect_count);
+                break;
+            case '4': // 按分享数排序
+                results.sort((a, b) => b.share_count - a.share_count);
+                break;
+            case '5': // 按发布时间排序（假设create_time是时间戳）
+                results.sort((a, b) => b.create_time - a.create_time);
+                break;
+            default:
+                // 默认不排序
+                break;
+        }
+        if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            return response.data.data
+                .filter(item => {
+                    // 过滤掉时长为0或大于3分钟的视频
+                    const durationInSeconds = parseDuration(item.duration);
+                    return durationInSeconds > 60 && durationInSeconds <= 180; 
+                })
+                .map(item => ({
+                    type: item.type || '',
+                    collection_time: new Date().toISOString(), // 当前时间作为采集时间
+                    uid: item.uid || '',
+                    sec_uid: item.sec_uid || '',
+                    unique_id: item.unique_id || '',
+                    short_id: item.short_id || '',
+                    id: item.id || '',
+                    desc: item.desc || '',
+                    text_extra: item.text_extra || '',
+                    duration: item.duration || '',
+                    ratio: item.ratio || '',
+                    height: item.height || 0,
+                    width: item.width || 0,
+                    share_url: item.share_url || '',
+                    create_time: item.create_time || '',
+                    uri: item.uri || '',
+                    nickname: item.nickname || '',
+                    user_age: item.user_age || 0,
+                    signature: item.signature || '',
+                    downloads: item.downloads || '',
+                    music_author: item.music_author || '',
+                    music_title: item.music_title || '',
+                    music_url: item.music_url || '',
+                    origin_cover: item.origin_cover || '',
+                    dynamic_cover: item.dynamic_cover || '',
+                    tag_1: item.tag_1 || '',
+                    tag_2: item.tag_2 || '',
+                    tag_3: item.tag_3 || '',
+                    digg_count: item.digg_count || 0,
+                    comment_count: item.comment_count || 0,
+                    collect_count: item.collect_count || 0,
+                    share_count: item.share_count || 0,
+                    extra: item.extra || ''
+                }));
+        } else {
+            console.error('意外的响应格式:', response.data);
+            return [];
+        }
         // 模拟搜索结果数据
         const simulateSearchResults = () => {
             return [{

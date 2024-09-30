@@ -6,6 +6,8 @@ const sqlite3 = require('sqlite3').verbose();
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { PROXY_URL } = require('../config');
 
 // 连接到 SQLite 数据库
 const db = new sqlite3.Database('./users.db', (err) => {
@@ -22,57 +24,102 @@ const db = new sqlite3.Database('./users.db', (err) => {
     }
 });
 
-// 设置 Google 策略
+// 设置代理
+const proxyUrl = PROXY_URL;
+const httpsAgent = new HttpsProxyAgent(proxyUrl);
+
+// 修改 Google 策略
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3001/api/auth/google/callback"
+    callbackURL: "http://localhost:3001/api/auth/google/callback",
+    proxy: true,
+    agent: httpsAgent
   },
   function(accessToken, refreshToken, profile, cb) {
-    // 处理用户信息
-    // 这里您需要实现用户信息的处理逻辑
-    // 例如,检查用户是否已存在,如果不存在则创建新用户
-    // 然后调用 cb(null, user) 来完成认证过程
+    console.log('Google OAuth callback reached');
+    console.log('Access Token:', accessToken);
+    console.log('Refresh Token:', refreshToken);
+    console.log('Profile:', JSON.stringify(profile, null, 2));
+    
+    if (!profile) {
+      console.error('No profile received from Google');
+      return cb(new Error('Failed to retrieve user profile from Google'));
+    }
+    
+    // 这里应该检查用户是否已存在,如果不存在则创建新用户
+    // 然后生成 JWT token
+    const token = jwt.sign({ id: profile.id, username: profile.displayName }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    cb(null, { token, user: profile });
   }
 ));
 
-// 设置 GitHub 策略
+// 确保设置了序列化和反序列化函数
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(obj, done) {
+  done(null, obj);
+});
+
+// 修改 GitHub 策略
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: "http://localhost:3001/api/auth/github/callback"
   },
   function(accessToken, refreshToken, profile, cb) {
-    // 处理用户信息
+    // 这里应该检查用户是否已存在,如果不存在则创建新用户
+    // 然后生成 JWT token
+    const token = jwt.sign({ id: profile.id, username: profile.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    cb(null, { token, user: profile });
   }
 ));
 
 // Google 认证路由
 router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }));
+  (req, res, next) => {
+    console.log('Starting Google OAuth process');
+    console.log('Google Client ID:', process.env.GOOGLE_CLIENT_ID);
+    console.log('Callback URL:', "http://localhost:3001/api/auth/google/callback");
+    next();
+  },
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    state: Math.random().toString(36).substring(7) // 添加一个随机状态
+  })
+);
 
 router.get('/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res, next) => {
+    console.log('Google OAuth callback received');
+    console.log('Query parameters:', req.query);
+    if (req.query.error) {
+      console.error('Google OAuth error:', req.query.error);
+    }
+    next();
+  },
+  passport.authenticate('google', { session: false }),
   function(req, res) {
-    // 成功认证,重定向回主页
-    res.redirect('/');
-  });
+    console.log('Google authentication successful');
+    res.redirect(`/?token=${req.user.token}`);
+  }
+);
 
 // GitHub 认证路由
 router.get('/github',
   passport.authenticate('github', { scope: [ 'user:email' ] }));
 
 router.get('/github/callback', 
-  passport.authenticate('github', { failureRedirect: '/login' }),
+  passport.authenticate('github', { session: false }),
   function(req, res) {
-    // 成功认证,重定向回主页
-    res.redirect('/');
+    res.redirect(`/?token=${req.user.token}`);
   });
 
 // 注册路由
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
-    
     try {
         // 检查用户名是否已存在
         db.get('SELECT * FROM users WHERE username = ?', [username], async (err, row) => {
@@ -87,7 +134,7 @@ router.post('/register', async (req, res) => {
             const hashedPassword = await bcrypt.hash(password, 10);
             db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
                 if (err) {
-                    return res.status(500).json({ message: '注册失败' });
+                    return res.status(500).json({ message: '注册失���' });
                 }
                 res.status(201).json({ message: '注册成功' });
             });
@@ -106,7 +153,7 @@ router.post('/login', (req, res) => {
     
     if (!username || !password) {
         console.log('Missing username or password');
-        return res.status(400).json({ message: '用户名和码都是必填项' });
+        return res.status(400).json({ message: '用户和密码都是必填项' });
     }
     
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {

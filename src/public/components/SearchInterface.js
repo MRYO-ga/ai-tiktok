@@ -2,7 +2,7 @@ const React = window.React;
 const { useState, useEffect, useRef } = React;
 
 const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
-    const [input, setInput] = React.useState('悉尼旅游租车');  // 设置默认值
+    const [input, setInput] = React.useState('悉尼旅游攻略');  // 设置默认值
     const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
     const models = ['gpt-4o-mini', 'gpt-4', 'gpt-4o', 'gpt-3.5-turbo'];
@@ -231,10 +231,12 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-gradient-to-br from-blue-50 to-blue-100">
             {showInitialSearch ? (
-                <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-blue-50 to-blue-100">
-                    <div className="search-container max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-10 transition-all duration-300 hover:shadow-xl">
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="search-container max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-8 transition-all duration-300 hover:shadow-xl">
+                        <h1 className="text-4xl font-bold mb-8 text-center text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">AI 搜索助手</h1>
+                        
                         <SearchBar 
                             input={input}
                             setInput={setInput}
@@ -243,7 +245,7 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             handleKeyPress={handleKeyPress}
                         />
                         
-                        <div className="mt-4 flex justify-between items-center">
+                        <div className="mt-8 flex justify-between items-center">
                             <ModelSelector 
                                 selectedModel={selectedModel}
                                 setSelectedModel={setSelectedModel}
@@ -251,35 +253,35 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             />
                         </div>
                         
-                        {/* <HotTopics handleSearch={handleSearchWrapper} /> */}
-                        
-                        <VideoUploader 
-                            handleVideoUpload={handleVideoUpload}
-                            fileInputKey={fileInputKey}
-                        />
-                        
-                        <VideoUrlInput 
-                            videoUrl={videoUrl}
-                            setVideoUrl={setVideoUrl}
-                            handleVideoUrl={handleVideoUrl}
-                            isLoading={isLoading}
-                        />
+                        <div className="mt-10 space-y-8">
+                            <VideoUploader 
+                                handleVideoUpload={handleVideoUpload}
+                                fileInputKey={fileInputKey}
+                            />
+                            
+                            <VideoUrlInput 
+                                videoUrl={videoUrl}
+                                setVideoUrl={setVideoUrl}
+                                handleVideoUrl={handleVideoUrl}
+                                isLoading={isLoading}
+                            />
+                        </div>
 
                         {isLoading && (
-                            <div className="mb-4">
-                                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                            <div className="mt-8">
+                                <div className="w-full bg-gray-200 rounded-full h-3">
                                     <div 
-                                        className="bg-blue-600 h-2.5 rounded-full" 
+                                        className="bg-gradient-to-r from-blue-500 to-teal-400 h-3 rounded-full transition-all duration-300 ease-in-out" 
                                         style={{width: `${uploadProgress}%`}}
                                     ></div>
                                 </div>
-                                <p className="text-blue-700 mt-2">上传进度：{uploadProgress}%</p>
+                                <p className="text-blue-700 mt-3 text-center font-semibold">上传进度：{uploadProgress}%</p>
                             </div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full bg-white shadow-lg rounded-lg m-4">
                     <div className="flex flex-1 overflow-hidden">
                         <ConversationDisplay 
                             conversations={conversations}
@@ -300,13 +302,15 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
                             videoData={videoData}
                         />
                     </div>
-                    <FollowUpInput 
-                        followUpQuestion={followUpQuestion}
-                        setFollowUpQuestion={setFollowUpQuestion}
-                        handleKeyPress={handleKeyPress}
-                        handleSearch={handleSearchWrapper}
-                        isLoading={isLoading}
-                    />
+                    <div className="border-t border-gray-200 p-4">
+                        <FollowUpInput 
+                            followUpQuestion={followUpQuestion}
+                            setFollowUpQuestion={setFollowUpQuestion}
+                            handleKeyPress={handleKeyPress}
+                            handleSearch={handleSearchWrapper}
+                            isLoading={isLoading}
+                        />
+                    </div>
                 </div>
             )}
         </div>

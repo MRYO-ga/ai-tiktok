@@ -186,3 +186,8 @@ const ConversationDisplay = ({
 
 // 将组件挂载到全局对象上
 window.ConversationDisplay = ConversationDisplay;
+
+const AnnotatedChatMessage = window.AnnotatedChatMessage;
+
+// 如果 AnnotatedChatMessage 组件还没有定义，我们可以暂时使用一个简单的替代：
+// const AnnotatedChatMessage = ({ content }) => <div>{content}</div>;

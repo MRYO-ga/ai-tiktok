@@ -9,6 +9,7 @@ const xiaohongshuRoutes = require('./routes/xiaohongshu');
 const chatRoutes = require('./routes/chat');
 const chatRouter = require('./routes/chat');
 const authRoutes = require('./routes/auth');
+const passport = require('passport');
 
 const app = express();
 
@@ -61,3 +62,8 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
+
+// 初始化 Passport
+app.use(passport.initialize());
+
+// ... 其余代码保持不变 ...
