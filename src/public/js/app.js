@@ -9,6 +9,12 @@ const App = () => {
     const [showInitialSearch, setShowInitialSearch] = useState(true);
     const [currentQuestion, setCurrentQuestion] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+
+    useEffect(() => {
+        document.body.className = theme;
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -31,9 +37,13 @@ const App = () => {
         });
     };
 
+    const toggleTheme = () => {
+        setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+    };
+
     return (
         <BrowserRouter>
-            <div className="flex h-screen bg-striped">
+            <div className={`flex h-screen ${theme} bg-gradient`}>
                 {window.Sidebar && (
                     <window.Sidebar 
                         isOpen={isSidebarOpen} 
@@ -41,32 +51,40 @@ const App = () => {
                         onNewQuestion={handleNewQuestion}
                         historyQuestions={historyQuestions}
                         onHistoryQuestionClick={handleHistoryQuestionClick}
+                        theme={theme}
+                        toggleTheme={toggleTheme}
                     />
                 )}
-                <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
-                    <nav className="bg-white shadow-md">
+                <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+                    <nav className="bg-white dark:bg-gray-800 shadow-md">
                         <ul className="flex p-4 justify-center space-x-6">
                             <li><Link to="/" className="nav-link text-lg hover:text-blue-600 transition-colors duration-300">首页</Link></li>
                             <li><Link to="/about" className="nav-link text-lg hover:text-blue-600 transition-colors duration-300">关于我们</Link></li>
+                            <li><Link to="/features" className="nav-link text-lg hover:text-blue-600 transition-colors duration-300">功能特点</Link></li>
+                            <li><Link to="/pricing" className="nav-link text-lg hover:text-blue-600 transition-colors duration-300">定价</Link></li>
                             <li><Link to="/search" className="nav-link text-lg hover:text-blue-600 transition-colors duration-300">搜索</Link></li>
                         </ul>
                     </nav>
-                    <Switch>
-                        <Route exact path="/" component={window.HomePage} />
-                        <Route path="/about" component={window.AboutPage} />
-                        <Route path="/search">
-                            {window.SearchInterface && (
-                                <window.SearchInterface 
-                                    onHistoryUpdate={updateHistory}
-                                    showInitialSearch={showInitialSearch}
-                                    setShowInitialSearch={setShowInitialSearch}
-                                    currentQuestion={currentQuestion}
-                                    isLoading={isLoading}
-                                    setIsLoading={setIsLoading}
-                                />
-                            )}
-                        </Route>
-                    </Switch>
+                    <main className="flex-1 overflow-y-auto p-6">
+                        <Switch>
+                            <Route exact path="/" component={window.HomePage} />
+                            <Route path="/about" component={window.AboutPage} />
+                            <Route path="/features" component={window.FeaturesPage} />
+                            <Route path="/search">
+                                {window.SearchInterface && (
+                                    <window.SearchInterface 
+                                        onHistoryUpdate={updateHistory}
+                                        showInitialSearch={showInitialSearch}
+                                        setShowInitialSearch={setShowInitialSearch}
+                                        currentQuestion={currentQuestion}
+                                        isLoading={isLoading}
+                                        setIsLoading={setIsLoading}
+                                    />
+                                )}
+                            </Route>
+                            <Route path="/pricing" component={window.PricingPage} />
+                        </Switch>
+                    </main>
                 </div>
             </div>
         </BrowserRouter>
