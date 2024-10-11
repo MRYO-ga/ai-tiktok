@@ -143,7 +143,7 @@ const handleSearch = async ({
 
         // 处理小红书搜索结果
         let xiaohongshuResults = [];
-        const NOTES_TO_PROCESS = 2;
+        const NOTES_TO_PROCESS = 1;
         if (resultsNotes && resultsNotes.data && resultsNotes.data.data && Array.isArray(resultsNotes.data.data.items) && resultsNotes.data.data.items.length > 0) {
             window.updateLoadingStatus(setConversations, `找到 ${resultsNotes.data.data.items.length} 个相关笔记`);
             xiaohongshuResults = await Promise.all(resultsNotes.data.data.items.slice(0, NOTES_TO_PROCESS).map(async (item) => {

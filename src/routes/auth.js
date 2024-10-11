@@ -14,12 +14,20 @@ const db = new sqlite3.Database('./users.db', (err) => {
     if (err) {
         console.error('Error connecting to the database:', err.message);
     } else {
-        console.log('Connected to the SQLite database.');
         // 创建用户表(如果不存在)
         db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT
+        )`);
+        // 创建聊天记录表(如果不存在)
+        db.run(`CREATE TABLE IF NOT EXISTS chat_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            conversation_id TEXT,
+            content TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )`);
     }
 });
@@ -134,7 +142,7 @@ router.post('/register', async (req, res) => {
             const hashedPassword = await bcrypt.hash(password, 10);
             db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
                 if (err) {
-                    return res.status(500).json({ message: '注册失���' });
+                    return res.status(500).json({ message: '注册失' });
                 }
                 res.status(201).json({ message: '注册成功' });
             });
@@ -145,7 +153,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// 登录路由
+// 修改登录路由
 router.post('/login', (req, res) => {
     const { username, password } = req.body;
     
@@ -153,7 +161,7 @@ router.post('/login', (req, res) => {
     
     if (!username || !password) {
         console.log('Missing username or password');
-        return res.status(400).json({ message: '用户和密码都是必填项' });
+        return res.status(400).json({ message: '用户名和密码都是必填项' });
     }
     
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
@@ -173,16 +181,9 @@ router.post('/login', (req, res) => {
                 return res.status(400).json({ message: '用户名或密码错误' });
             }
 
-            if (!process.env.JWT_SECRET) {
-                console.error('JWT_SECRET is not set');
-                return res.status(500).json({ message: '服务器配置错误' });
-            }
-
-            console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');
-
             const token = jwt.sign({ id: user.id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
             console.log('Login successful for user:', username);
-            res.json({ token, username: user.username });
+            res.json({ token, username: user.username, userId: user.id });
         } catch (error) {
             console.error('Login error:', error);
             res.status(500).json({ message: '服务器错误' });
@@ -190,8 +191,78 @@ router.post('/login', (req, res) => {
     });
 });
 
-// Debugging outputs
-console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-console.log('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID);
+// 修改保存聊天记录的路由
+router.post('/save-chat-history', (req, res) => {
+    const { userId, conversationId, content } = req.body;
+    
+    console.log('Received save chat history request:', req.body);
+
+    if (!userId || !conversationId || !content) {
+        console.error('Missing required parameters:', { userId, conversationId, content });
+        return res.status(400).json({ message: '缺少必要参数' });
+    }
+
+    // 确保 content 是字符串
+    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
+
+    db.run('INSERT OR REPLACE INTO chat_history (user_id, conversation_id, content) VALUES (?, ?, ?)', 
+        [userId, conversationId, contentString], 
+        (err) => {
+            if (err) {
+                console.error('保存聊天记录失败:', err);
+                return res.status(500).json({ message: '保存聊天记录失败' });
+            }
+            res.json({ success: true, message: '聊天记录保存成功' });
+        }
+    );
+});
+
+// 修改获取聊天记录的路由
+router.get('/get-chat-history/:userId', (req, res) => {
+    const userId = req.params.userId;
+
+    if (!userId) {
+        console.log('未提供 userId');
+        return res.status(400).json({ message: '缺少 userId 参数' });
+    }
+
+    db.all('SELECT * FROM chat_history WHERE user_id = ? ORDER BY conversation_id DESC', [userId], (err, rows) => {
+        if (err) {
+            console.error('获取聊天记录失败:', err);
+            return res.status(500).json({ message: '获取聊天记录失败' });
+        }
+        const chatHistory = rows.map(row => {
+            try {
+                return {
+                    ...row,
+                    content: JSON.parse(row.content)
+                };
+            } catch (error) {
+                console.error('解析聊天记录内容失败:', error);
+                return {
+                    ...row,
+                    content: row.content // 如果解析失败，返回原始字符串
+                };
+            }
+        });
+        res.json(chatHistory);
+    });
+});
+
+// 添加验证 token 的路由
+router.post('/verify-token', (req, res) => {
+    const { token } = req.body;
+    
+    if (!token) {
+        return res.status(400).json({ valid: false, message: '缺少 token' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            return res.json({ valid: false, message: 'token 无效' });
+        }
+        res.json({ valid: true, userId: decoded.id, username: decoded.username });
+    });
+});
 
 module.exports = router;

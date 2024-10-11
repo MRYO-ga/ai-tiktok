@@ -11,7 +11,7 @@ const FollowUpInput = ({ followUpQuestion, setFollowUpQuestion, handleKeyPress, 
                 disabled={isLoading}
             />
             <button
-                onClick={() => handleSearch(followUpQuestion)}
+                onClick={() => handleSearch(followUpQuestion, false)}
                 className="button rounded-r-lg hover:bg-blue-600 transition-colors"
                 disabled={isLoading}
             >

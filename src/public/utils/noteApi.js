@@ -1,3 +1,4 @@
+const BASE_URL = 'http://localhost:3001/api';  // 请根据您的实际后端地址进行调整
 
 const searchNotesWithRetry = async (keyword, page = 1, sort = 'general', noteType = '_0') => {
     try {
@@ -46,7 +47,7 @@ const getNoteInfoAndComments = async (noteId) => {
         // 获取评论
         let allComments = [];
         let lastCursor = '';
-        const MAX_PAGES = 3; // 设置您想要获取的最大页数
+        const MAX_PAGES = 3; // 设置您��要获取的最大页��
 
         for (let i = 0; i < MAX_PAGES; i++) {
             const commentsPage = await getNoteCommentsWithRetry(noteId, lastCursor);
@@ -57,7 +58,7 @@ const getNoteInfoAndComments = async (noteId) => {
                     // 只为第一页评论调用提取和打印函数
                     // extractAndPrintComments(commentsPage.data);
                 }
-                if (!lastCursor) break; // 如果没有更多评论，退出循环
+                if (!lastCursor) break; // 如果没有更多评论，出循环
             } else {
                 break; // 如果获取评论失败，退出循环
             }
@@ -91,7 +92,7 @@ const printJsonData = (data) => {
                 console.log("  标题:", item.note.display_title);
                 console.log("  用户昵称:", item.note.user.nickname);
                 console.log("  封面图 URL:", item.note.cover.url_default);
-                console.log("  点赞情况:", item.note.liked);
+                console.log("  赞情况:", item.note.liked);
                 console.log("  点赞数:", item.note.liked_count);
             }
             if (item.hot_query) {
@@ -143,7 +144,7 @@ const handleErrorResponse = (error) => {
                 console.log("缺少路由访问权限或账户问题");
                 break;
             case 404:
-                console.log("路由数据未找到");
+                console.log("路��数据未找到");
                 break;
             case 402:
                 console.log("请求超时");
@@ -168,3 +169,109 @@ window.getNoteInfoAndComments = getNoteInfoAndComments;
 window.printJsonData = printJsonData;
 window.handleErrorResponse = handleErrorResponse;
 window.searchNotesWithRetry = searchNotesWithRetry;
+
+// 新增用户登录函数
+const loginUser = async (username, password) => {
+    try {
+        const response = await axios.post(`${BASE_URL}/auth/login`, { username, password });
+        if (response.data.token) {
+            return {
+                success: true,
+                token: response.data.token,
+                username: response.data.username,
+                userId: response.data.userId
+            };
+        }
+        return { success: false };
+    } catch (error) {
+        console.error('登录失败:', error);
+        return { success: false };
+    }
+};
+
+// 新增保存聊天记录函数
+const saveChatHistory = async (userId, conversationId, content) => {
+    const token = localStorage.getItem('token');
+    if (!token || !userId) {
+        console.warn('用户未登录或缺少userId,无法保存聊天记录');
+        return false;
+    }
+
+    try {
+        console.log('Sending save chat history request:', { userId, conversationId, content });
+        const response = await axios.post(`${BASE_URL}/auth/save-chat-history`, 
+            { userId, conversationId, content: JSON.stringify(content) },
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        console.log('保存聊天记录成功:', response.data);
+        return response.data.success;
+    } catch (error) {
+        console.error('保存聊天记录失败:', error.response ? error.response.data : error);
+        return false;
+    }
+};
+
+// 修改获取聊天记录函数
+const getChatHistory = async (userId) => {
+    const token = localStorage.getItem('token');
+    if (!token || !userId) {
+        console.warn('用户未登录或缺少 userId，无法获取聊天记录');
+        return null;
+    }
+
+    try {
+        const response = await axios.get(`${BASE_URL}/auth/get-chat-history/${userId}`, 
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        console.log('获取聊天记录成功:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('获取聊天记录失败:', error);
+        return null;
+    }
+};
+
+// 将新函数挂载到window对象上
+window.loginUser = loginUser;
+window.saveChatHistory = saveChatHistory;
+window.getChatHistory = getChatHistory;
+
+// 如果 saveChatHistory 函数已经存在,就删除这个重复的声明
+// 如果不存在,就保留这个新的声明
+if (typeof window.saveChatHistory === 'undefined') {
+    // 保存聊天记录
+    const saveChatHistory = async (userId, conversationId, content) => {
+        try {
+            const response = await axios.post(`${BASE_URL}/auth/save-chat-history`, {
+                userId,
+                conversationId,
+                content
+            });
+            return response.data;
+        } catch (error) {
+            console.error('保存聊天记录失败:', error);
+            throw error;
+        }
+    };
+
+    // 将新函数挂载到window对象上
+    window.saveChatHistory = saveChatHistory;
+}
+
+// 如果 getChatHistory 函数已经存在,就删除这个重复的声明
+// 如果不存在,就保留这个新的声明
+if (typeof window.getChatHistory === 'undefined') {
+    // 获取聊天记录
+    const getChatHistory = async (userId) => {
+        try {
+            const response = await axios.get(`${BASE_URL}/auth/get-chat-history/${userId}`);
+            return response.data;
+        } catch (error) {
+            console.error('获取聊天记录失败:', error);
+            throw error;
+        }
+    };
+
+    // 将新函数挂载到window对象上
+    window.getChatHistory = getChatHistory;
+}

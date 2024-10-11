@@ -1,7 +1,16 @@
 const React = window.React;
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
-const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSearch, currentQuestion, isLoading, setIsLoading }) => {
+const SearchInterface = ({ 
+    onHistoryUpdate, 
+    showInitialSearch, 
+    setShowInitialSearch, 
+    currentQuestion, 
+    isLoading, 
+    setIsLoading,
+    userId,
+    isLoggedIn
+}) => {
     const [input, setInput] = React.useState('悉尼旅游攻略');  // 设置默认值
     const [selectedModel, setSelectedModel] = React.useState('gpt-4o-mini');
     const [followUpQuestion, setFollowUpQuestion] = React.useState('');
@@ -31,7 +40,11 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
         };
     }, []);
 
-    const handleSearchWrapper = async (question, isNewQuestion = false, isVideoSearch = false, userChoices = null) => {
+    const handleSearchWrapper = useCallback(async (question, isNewQuestion = false, isVideoSearch = false, userChoices = null) => {
+        if (isNewQuestion) {
+            setConversations([]);  // 清空现有会话，而不是创建新的空数组
+        }
+
         await window.handleSearch({
             question,
             isNewQuestion,
@@ -40,7 +53,13 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             setIsLoading,
             setShowInitialSearch,
             onHistoryUpdate,
-            setConversations,
+            setConversations: (updater) => {
+                setConversations(prevConversations => {
+                    const newConversations = updater(prevConversations);
+                    console.log('Conversations updated:', newConversations);
+                    return newConversations;
+                });
+            },
             selectedModel,
             uploadedVideo,
             setSearchResults,
@@ -49,7 +68,23 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
             setIsVideoSearch,
             setUploadedVideo
         });
-    };
+
+        // 在搜索完成后，保存整个会话
+        if (isLoggedIn && userId) {
+            const conversationId = Date.now().toString(); // 使用时间戳作为会话ID
+            const conversationContent = conversations[conversations.length - 1];
+            try {
+                await window.saveChatHistory(userId, conversationId, JSON.stringify(conversationContent));
+                console.log('聊天记录保存成功');
+            } catch (error) {
+                console.error('保存聊天记录失败:', error);
+            }
+        }
+    }, [conversations, isLoggedIn, userId, selectedModel, uploadedVideo]);
+
+    useEffect(() => {
+        console.log('Conversations state:', conversations);
+    }, [conversations]);
 
     React.useEffect(() => {
         if (currentQuestion) {
@@ -318,4 +353,4 @@ const SearchInterface = ({ onHistoryUpdate, showInitialSearch, setShowInitialSea
 };
 
 // 将组件挂载到全局对象上
-window.SearchInterface = SearchInterface;
+window.SearchInterface = React.memo(SearchInterface);
